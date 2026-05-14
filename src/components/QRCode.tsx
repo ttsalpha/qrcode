@@ -4,7 +4,7 @@ import { generateQRMatrix } from '../core/matrix';
 import { renderDataModules, getFinderPatterns } from '../renderer/svg';
 import { QRCorner } from './QRCorner';
 
-export function QRCode({
+export const QRCode = React.memo(function QRCode({
   value,
   width = 256,
   height = 256,
@@ -21,7 +21,10 @@ export function QRCode({
   const ecLevel = qr?.errorCorrectionLevel ?? 'M';
   const requestedVersion = qr?.version;
 
-  const { matrix, size } = generateQRMatrix(value, ecLevel, requestedVersion);
+  const { matrix, size } = React.useMemo(
+    () => generateQRMatrix(value, ecLevel, requestedVersion),
+    [value, ecLevel, requestedVersion],
+  );
 
   // Module size in pixels (accounting for margin)
   const totalModules = size + margin * 2;
@@ -40,8 +43,14 @@ export function QRCode({
     corner?.dot?.style ?? defaultCornerDotStyle;
   const cornerDotColor = corner?.dot?.color ?? dotColor;
 
-  const { paths } = renderDataModules(matrix, moduleSize, marginPx, dotStyle);
-  const finderPatterns = getFinderPatterns(size, moduleSize, marginPx);
+  const { paths } = React.useMemo(
+    () => renderDataModules(matrix, moduleSize, marginPx, dotStyle),
+    [matrix, moduleSize, marginPx, dotStyle],
+  );
+  const finderPatterns = React.useMemo(
+    () => getFinderPatterns(size, moduleSize, marginPx),
+    [size, moduleSize, marginPx],
+  );
 
   // Logo dimensions
   const logoWidth = logo?.width ?? svgWidth * 0.2;
@@ -107,4 +116,4 @@ export function QRCode({
       ) : null}
     </svg>
   );
-}
+});

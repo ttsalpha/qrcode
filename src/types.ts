@@ -7,7 +7,16 @@ export type ErrorCorrectionLevel = 'L' | 'M' | 'Q' | 'H';
 export type EncodingMode = 'numeric' | 'alphanumeric' | 'byte';
 
 export interface LogoOptions {
+  /**
+   * URL of the logo image. `javascript:` and non-image `data:` URLs are
+   * silently rejected. Only pass values you control or have validated.
+   */
   src?: string;
+  /**
+   * Arbitrary React node rendered inside a `<foreignObject>`. Never pass
+   * content derived from untrusted user input without sanitising it first,
+   * as it is rendered verbatim and can execute scripts.
+   */
   element?: ReactNode;
   width?: number;
   height?: number;

@@ -4,6 +4,15 @@ import { generateQRMatrix } from '../core/matrix';
 import { renderDataModules, getFinderPatterns } from '../renderer/svg';
 import { QRCorner } from './QRCorner';
 
+// Block javascript: and non-image data: URLs; allow everything else
+// (https, http, relative paths, blob:, data:image/…).
+function isSafeSrc(src: string): boolean {
+  const s = src.trim().toLowerCase();
+  if (s.startsWith('javascript:')) return false;
+  if (s.startsWith('data:') && !s.startsWith('data:image/')) return false;
+  return true;
+}
+
 export const QRCode = React.memo(function QRCode({
   value,
   width = 256,
@@ -104,7 +113,7 @@ export const QRCode = React.memo(function QRCode({
         >
           {logo.element}
         </foreignObject>
-      ) : logo?.src ? (
+      ) : logo?.src && isSafeSrc(logo.src) ? (
         <image
           href={logo.src}
           x={logoX}

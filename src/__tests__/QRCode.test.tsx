@@ -69,6 +69,31 @@ describe('QRCode component', () => {
     expect(image?.getAttribute('href')).toBe('https://example.com/logo.png');
   });
 
+  it('does not render logo image for javascript: src', () => {
+    const { container } = render(
+      // eslint-disable-next-line no-script-url
+      <QRCode value="TEST" logo={{ src: 'javascript:alert(1)' }} />,
+    );
+    expect(container.querySelector('image')).toBeNull();
+  });
+
+  it('does not render logo image for non-image data: src', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        logo={{ src: 'data:text/html,<script>alert(1)</script>' }}
+      />,
+    );
+    expect(container.querySelector('image')).toBeNull();
+  });
+
+  it('renders logo image for data:image/ src', () => {
+    const { container } = render(
+      <QRCode value="TEST" logo={{ src: 'data:image/png;base64,abc' }} />,
+    );
+    expect(container.querySelector('image')).not.toBeNull();
+  });
+
   it('renders logo element when element is provided', () => {
     const { container } = render(
       <QRCode

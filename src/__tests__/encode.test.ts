@@ -38,6 +38,20 @@ describe('encodeQR', () => {
     // v1-L: 19 data + 7 ECC = 26 total
     expect(result.codewords).toHaveLength(26);
   });
+
+  it('throws on empty string', () => {
+    expect(() => encodeQR('', 'M')).toThrow(RangeError);
+  });
+
+  it('throws when requestedVersion is out of range', () => {
+    expect(() => encodeQR('A', 'M', 0)).toThrow(RangeError);
+    expect(() => encodeQR('A', 'M', 41)).toThrow(RangeError);
+  });
+
+  it('throws when data is too large for requestedVersion', () => {
+    // v1-M holds at most 16 data codewords; a very long string won't fit
+    expect(() => encodeQR('A'.repeat(200), 'M', 1)).toThrow(RangeError);
+  });
 });
 
 describe('generateQRMatrix', () => {

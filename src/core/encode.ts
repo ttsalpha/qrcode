@@ -19,7 +19,7 @@ function getAlphanumericValue(ch: string): number {
 }
 
 function isNumeric(str: string): boolean {
-  return /^[0-9]*$/.test(str);
+  return /^[0-9]+$/.test(str);
 }
 
 function isAlphanumeric(str: string): boolean {
@@ -132,7 +132,9 @@ const PAD_BYTES = [0xec, 0x11];
 function padDataCodewords(bytes: number[], capacity: number): number[] {
   const result = bytes.slice();
   if (result.length > capacity) {
-    return result.slice(0, capacity);
+    throw new RangeError(
+      `encoded data (${result.length} bytes) exceeds capacity (${capacity} bytes) for the selected version`,
+    );
   }
   let padIdx = 0;
   while (result.length < capacity) {
@@ -154,6 +156,10 @@ export function encodeQR(
   ecLevel: ErrorCorrectionLevel = 'M',
   requestedVersion?: number,
 ): EncodeResult {
+  if (data.length === 0) {
+    throw new RangeError('data must not be empty');
+  }
+
   const ecIdx = EC_LEVEL_INDEX[ecLevel];
   const mode = detectMode(data);
 
@@ -163,7 +169,20 @@ export function encodeQR(
   // exact bit count without knowing which group we land in.
   let version = 1;
   if (requestedVersion !== undefined) {
+    if (requestedVersion < 1 || requestedVersion > 40) {
+      throw new RangeError(
+        `version must be between 1 and 40, got ${requestedVersion}`,
+      );
+    }
     version = requestedVersion;
+    const capacity = getDataCodewordsCapacity(version, ecIdx);
+    const bits = encodeData(data, mode, version);
+    const totalBytes = Math.ceil((bits.length + 4) / 8);
+    if (totalBytes > capacity) {
+      throw new RangeError(
+        `data too large for version ${version} with EC level "${ecLevel}" (needs ${totalBytes} bytes, capacity ${capacity})`,
+      );
+    }
   } else {
     for (let v = 1; v <= 40; v++) {
       const capacity = getDataCodewordsCapacity(v, ecIdx);

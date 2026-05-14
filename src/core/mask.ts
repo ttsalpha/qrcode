@@ -110,14 +110,25 @@ const N3_PATTERN2 = [
   true,
 ];
 
-function matchPattern(
+function matchPatternInRow(
   row: boolean[],
   start: number,
   pattern: boolean[],
 ): boolean {
   for (let i = 0; i < pattern.length; i++) {
-    if (start + i >= row.length) return false;
     if (row[start + i] !== pattern[i]) return false;
+  }
+  return true;
+}
+
+function matchPatternInCol(
+  matrix: boolean[][],
+  startRow: number,
+  col: number,
+  pattern: boolean[],
+): boolean {
+  for (let i = 0; i < pattern.length; i++) {
+    if (matrix[startRow + i][col] !== pattern[i]) return false;
   }
   return true;
 }
@@ -130,21 +141,20 @@ function penaltyN3(matrix: boolean[][]): number {
     const rowArr = matrix[r];
     for (let c = 0; c <= size - 11; c++) {
       if (
-        matchPattern(rowArr, c, N3_PATTERN1) ||
-        matchPattern(rowArr, c, N3_PATTERN2)
+        matchPatternInRow(rowArr, c, N3_PATTERN1) ||
+        matchPatternInRow(rowArr, c, N3_PATTERN2)
       ) {
         penalty += 40;
       }
     }
   }
 
-  // Vertical
+  // Vertical — index directly into matrix to avoid column array allocations
   for (let c = 0; c < size; c++) {
-    const col = matrix.map((row) => row[c]);
     for (let r = 0; r <= size - 11; r++) {
       if (
-        matchPattern(col, r, N3_PATTERN1) ||
-        matchPattern(col, r, N3_PATTERN2)
+        matchPatternInCol(matrix, r, c, N3_PATTERN1) ||
+        matchPatternInCol(matrix, r, c, N3_PATTERN2)
       ) {
         penalty += 40;
       }

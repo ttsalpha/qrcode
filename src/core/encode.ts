@@ -23,7 +23,10 @@ function isNumeric(str: string): boolean {
 }
 
 function isAlphanumeric(str: string): boolean {
-  return [...str].every((ch) => ALPHANUMERIC_MAP.has(ch));
+  for (let i = 0; i < str.length; i++) {
+    if (!ALPHANUMERIC_MAP.has(str[i])) return false;
+  }
+  return true;
 }
 
 // Prefer the most compact mode that can represent all characters.

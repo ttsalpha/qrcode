@@ -284,11 +284,11 @@ function placeDataBits(
       continue;
     }
 
-    const rows = goingUp
-      ? Array.from({ length: size }, (_, i) => size - 1 - i)
-      : Array.from({ length: size }, (_, i) => i);
+    const rowStart = goingUp ? size - 1 : 0;
+    const rowEnd = goingUp ? -1 : size;
+    const rowStep = goingUp ? -1 : 1;
 
-    for (const row of rows) {
+    for (let row = rowStart; row !== rowEnd; row += rowStep) {
       for (let dc = 0; dc <= 1; dc++) {
         const c = col - dc;
         if (c < 0) continue;

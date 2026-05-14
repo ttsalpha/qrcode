@@ -129,13 +129,15 @@ interface CornerOptions {
 
 ```ts
 interface LogoOptions {
-  src?: string; // image URL or base64
+  src?: string; // https, relative path, blob:, or data:image/… URI
   element?: ReactNode; // takes priority over src if both provided
   width?: number; // default: 20% of QR width
   height?: number; // default: 20% of QR height
   padding?: number; // transparent padding around the logo
 }
 ```
+
+> **Security:** `javascript:` and non-image `data:` URIs in `src` are silently rejected. Never pass unsanitised user input as `element` — it is rendered verbatim inside a `<foreignObject>`.
 
 ### `QROptions`
 

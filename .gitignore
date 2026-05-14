@@ -1,0 +1,37 @@
+# macOS
+.DS_Store
+._*
+
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Test coverage
+coverage/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# npm
+.npm
+*.tgz
+
+# Environment variable files
+.env
+.env.local
+.env.*.local
+
+# Editor
+.idea
+.vscode
+.cursor
+
+# Local
+.local
+*.local.*
+.history

@@ -1,0 +1,29 @@
+# Source
+src/
+
+# Tests
+**/__tests__/
+**/*.test.ts
+**/*.test.tsx
+
+# Config & tooling
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+prettier.config.ts
+.editorconfig
+.gitignore
+.npmrc
+.npmignore
+.prettierignore
+pnpm-workspace.yaml
+pnpm-lock.yaml
+
+# GitHub
+.github/
+
+# Dev artifacts
+node_modules/
+.DS_Store
+*.log
+*.tsbuildinfo

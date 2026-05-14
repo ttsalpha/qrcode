@@ -1,0 +1,61 @@
+{
+  "name": "@ttsalpha/qrcode",
+  "version": "1.0.0",
+  "description": "Lightweight, fully customizable React QR code library rendered as SVG",
+  "author": "Son Tran",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ttsalpha/qrcode.git"
+  },
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "qrcode",
+    "qr",
+    "react",
+    "svg",
+    "qr-code",
+    "react-qrcode",
+    "customizable"
+  ],
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "react-dom": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "29.1.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "prettier": "3.8.3",
+    "vite": "8.0.13",
+    "vitest": "4.1.6"
+  }
+}

@@ -45,9 +45,20 @@ function generatePolynomial(nECC: number): number[] {
   return poly;
 }
 
+const polynomialCache = new Map<number, number[]>();
+
+function getCachedPolynomial(nECC: number): number[] {
+  let poly = polynomialCache.get(nECC);
+  if (!poly) {
+    poly = generatePolynomial(nECC);
+    polynomialCache.set(nECC, poly);
+  }
+  return poly;
+}
+
 // Compute `nECC` Reed-Solomon error correction codewords for `data`
 export function computeECC(data: number[], nECC: number): number[] {
-  const generator = generatePolynomial(nECC);
+  const generator = getCachedPolynomial(nECC);
   // Initialize remainder as data codewords followed by nECC zeros
   const remainder = new Array(data.length + nECC).fill(0) as number[];
   for (let i = 0; i < data.length; i++) {

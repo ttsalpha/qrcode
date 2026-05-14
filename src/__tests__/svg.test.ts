@@ -42,7 +42,7 @@ describe('renderDataModules', () => {
     const result = renderDataModules(matrix, 10, 0, 'square');
 
     for (const { row, col } of result.paths) {
-      expect(finderModules.has(`${row},${col}`)).toBe(false);
+      expect(finderModules.has(row * size + col)).toBe(false);
     }
   });
 
@@ -156,11 +156,12 @@ describe('getFinderPatternModules', () => {
   });
 
   it('includes top-left finder modules', () => {
-    const modules = getFinderPatternModules(21);
+    const size = 21;
+    const modules = getFinderPatternModules(size);
     // All modules in 0..6 x 0..6 should be in set (plus separator at -1)
     for (let r = 0; r <= 6; r++) {
       for (let c = 0; c <= 6; c++) {
-        expect(modules.has(`${r},${c}`)).toBe(true);
+        expect(modules.has(r * size + c)).toBe(true);
       }
     }
   });

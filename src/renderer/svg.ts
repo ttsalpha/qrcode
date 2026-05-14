@@ -8,9 +8,9 @@ export interface ModulePath {
 }
 
 // Identify which modules belong to finder patterns
-// Returns a Set of "row,col" keys for all modules in the 3 finder pattern regions
-export function getFinderPatternModules(size: number): Set<string> {
-  const modules = new Set<string>();
+// Returns a Set of packed integer keys (row * size + col) for all modules in the 3 finder regions
+export function getFinderPatternModules(size: number): Set<number> {
+  const modules = new Set<number>();
   // Positions: top-left (0,0), top-right (0, size-7), bottom-left (size-7, 0)
   // Each finder is 7x7 plus 1-module separator = 8x8 total reserved area
   const corners: Array<[number, number]> = [
@@ -24,7 +24,7 @@ export function getFinderPatternModules(size: number): Set<string> {
         const mr = startRow + r;
         const mc = startCol + c;
         if (mr >= 0 && mc >= 0 && mr < size && mc < size) {
-          modules.add(`${mr},${mc}`);
+          modules.add(mr * size + mc);
         }
       }
     }
@@ -49,7 +49,7 @@ export function renderDataModules(
 
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
-      if (finderModules.has(`${r},${c}`)) continue;
+      if (finderModules.has(r * size + c)) continue;
       if (!matrix[r][c]) continue;
 
       const x = moduleToPixel(c, moduleSize, marginPx);

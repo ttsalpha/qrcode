@@ -148,6 +148,51 @@ interface QROptions {
 }
 ```
 
+## Export Helpers
+
+### `toSVGString(props)`
+
+Generates an SVG string without mounting to the DOM. Useful for server-side rendering, saving to a database, or copying to clipboard.
+
+```ts
+import { toSVGString } from '@ttsalpha/qrcode';
+
+const svg = toSVGString({ value: 'https://example.com', size: 512 });
+// "<svg role="img" ...>...</svg>"
+```
+
+### `toDataURL(props, options?)`
+
+Renders the QR code to a `data:` URL via Canvas. Browser-only (requires Canvas API).
+
+```ts
+import { toDataURL } from '@ttsalpha/qrcode';
+
+// PNG (default)
+const png = await toDataURL({ value: 'https://example.com', size: 512 });
+
+// JPEG with quality
+const jpg = await toDataURL(
+  { value: 'https://example.com', size: 512 },
+  { format: 'jpeg', quality: 0.9 },
+);
+
+// Use as download link
+const link = document.createElement('a');
+link.href = await toDataURL({ value: 'https://example.com' });
+link.download = 'qrcode.png';
+link.click();
+```
+
+#### `ToDataURLOptions`
+
+| Option    | Type              | Default         | Description                   |
+| --------- | ----------------- | --------------- | ----------------------------- |
+| `format`  | `'png' \| 'jpeg'` | `'png'`         | Output image format           |
+| `quality` | `number` (0–1)    | browser default | JPEG quality. Ignored for PNG |
+
+> **Note:** JPEG has no alpha channel. When `backgroundColor` is `'transparent'`, the background is automatically filled with white.
+
 ## Technical Details
 
 - QR versions 1–40, auto-selects the minimum version that fits the data

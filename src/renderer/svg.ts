@@ -63,12 +63,8 @@ export function renderDataModules(
 }
 
 export interface FinderPatternInfo {
-  startRow: number;
-  startCol: number;
   x: number;
   y: number;
-  outerSize: number;
-  innerSize: number;
 }
 
 export function getFinderPatterns(
@@ -76,21 +72,14 @@ export function getFinderPatterns(
   moduleSize: number,
   marginPx: number,
 ): FinderPatternInfo[] {
-  const outerSize = 7 * moduleSize;
-  const innerSize = 3 * moduleSize;
-
-  const corners: Array<{ startRow: number; startCol: number }> = [
-    { startRow: 0, startCol: 0 },
-    { startRow: 0, startCol: size - 7 },
-    { startRow: size - 7, startCol: 0 },
+  const corners: Array<[number, number]> = [
+    [0, 0],
+    [0, size - 7],
+    [size - 7, 0],
   ];
 
-  return corners.map(({ startRow, startCol }) => ({
-    startRow,
-    startCol,
-    x: moduleToPixel(startCol, moduleSize, marginPx),
-    y: moduleToPixel(startRow, moduleSize, marginPx),
-    outerSize,
-    innerSize,
+  return corners.map(([row, col]) => ({
+    x: moduleToPixel(col, moduleSize, marginPx),
+    y: moduleToPixel(row, moduleSize, marginPx),
   }));
 }

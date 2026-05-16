@@ -108,38 +108,22 @@ describe('getFinderPatterns', () => {
     expect(patterns).toHaveLength(3);
   });
 
-  it('finder patterns have correct positions', () => {
+  it('finder patterns have correct pixel positions', () => {
     const moduleSize = 10;
     const margin = 40;
     const patterns = getFinderPatterns(21, moduleSize, margin);
 
-    // Top-left: starts at (0, 0) in module coords
+    // Top-left: (0, 0)
     expect(patterns[0].x).toBe(margin);
     expect(patterns[0].y).toBe(margin);
 
-    // Top-right: starts at (0, size-7) = (0, 14) in module coords
+    // Top-right: col = size-7 = 14
     expect(patterns[1].x).toBe(margin + 14 * moduleSize);
     expect(patterns[1].y).toBe(margin);
 
-    // Bottom-left: starts at (size-7, 0) = (14, 0) in module coords
+    // Bottom-left: row = size-7 = 14
     expect(patterns[2].x).toBe(margin);
     expect(patterns[2].y).toBe(margin + 14 * moduleSize);
-  });
-
-  it('outer size is 7 * moduleSize', () => {
-    const moduleSize = 15;
-    const patterns = getFinderPatterns(21, moduleSize, 0);
-    for (const p of patterns) {
-      expect(p.outerSize).toBe(7 * moduleSize);
-    }
-  });
-
-  it('inner size is 3 * moduleSize', () => {
-    const moduleSize = 15;
-    const patterns = getFinderPatterns(21, moduleSize, 0);
-    for (const p of patterns) {
-      expect(p.innerSize).toBe(3 * moduleSize);
-    }
   });
 });
 

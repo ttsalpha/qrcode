@@ -1,12 +1,6 @@
 import type { DotStyle } from '../types';
 import { dotPath, moduleToPixel, type DotNeighbors } from './utils';
 
-export interface ModulePath {
-  path: string;
-  row: number;
-  col: number;
-}
-
 // Identify which modules belong to finder patterns
 // Returns a Set of packed integer keys (row * size + col) for all modules in the 3 finder regions
 export function getFinderPatternModules(size: number): Set<number> {
@@ -32,20 +26,16 @@ export function getFinderPatternModules(size: number): Set<number> {
   return modules;
 }
 
-export interface RenderDataModulesResult {
-  paths: ModulePath[];
-}
-
-// Render all non-finder-pattern dark modules
+// Render all non-finder-pattern dark modules, returns one SVG path string per module
 export function renderDataModules(
   matrix: boolean[][],
   moduleSize: number,
   marginPx: number,
   dotStyle: DotStyle,
-): RenderDataModulesResult {
+): string[] {
   const size = matrix.length;
   const finderModules = getFinderPatternModules(size);
-  const paths: ModulePath[] = [];
+  const paths: string[] = [];
 
   for (let r = 0; r < size; r++) {
     for (let c = 0; c < size; c++) {
@@ -65,15 +55,11 @@ export function renderDataModules(
         };
       }
 
-      paths.push({
-        path: dotPath(x, y, moduleSize, dotStyle, neighbors),
-        row: r,
-        col: c,
-      });
+      paths.push(dotPath(x, y, moduleSize, dotStyle, neighbors));
     }
   }
 
-  return { paths };
+  return paths;
 }
 
 export interface FinderPatternInfo {

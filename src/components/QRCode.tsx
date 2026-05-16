@@ -59,7 +59,7 @@ export const QRCode = React.memo(function QRCode({
     corner?.dot?.style ?? defaultCornerDotStyle;
   const cornerDotColor = corner?.dot?.color ?? dotColor;
 
-  const { paths } = React.useMemo(
+  const paths = React.useMemo(
     () => renderDataModules(matrix, moduleSize, marginPx, dotStyle),
     [matrix, moduleSize, marginPx, dotStyle],
   );
@@ -130,9 +130,7 @@ export const QRCode = React.memo(function QRCode({
 
       <g mask={applyLogoMask ? `url(#${maskId})` : undefined}>
         {/* Data modules */}
-        {paths.length > 0 && (
-          <path d={paths.map((p) => p.path).join(' ')} fill={dotColor} />
-        )}
+        {paths.length > 0 && <path d={paths.join(' ')} fill={dotColor} />}
 
         {/* Finder patterns (corners) */}
         {finderPatterns.map((fp, idx) => (

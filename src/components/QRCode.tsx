@@ -27,6 +27,7 @@ export const QRCode = React.memo(function QRCode({
   qr,
   className,
   style,
+  ariaLabel,
 }: QRCodeProps): React.JSX.Element {
   const ecLevel = qr?.errorCorrectionLevel ?? 'M';
   const requestedVersion = qr?.version;
@@ -65,7 +66,9 @@ export const QRCode = React.memo(function QRCode({
     [qrSize, moduleSize, marginPx],
   );
 
-  const maskId = React.useId().replace(/:/g, '');
+  const uid = React.useId().replace(/:/g, '');
+  const maskId = uid + 'm';
+  const titleId = uid + 't';
 
   const maxLogoSize = { L: 0.15, M: 0.22, Q: 0.32, H: 0.4 }[ecLevel];
   const logoSizeFraction = Math.min(logo?.size ?? 0.2, maxLogoSize);
@@ -83,6 +86,8 @@ export const QRCode = React.memo(function QRCode({
 
   return (
     <svg
+      role="img"
+      aria-labelledby={titleId}
       width={size}
       height={size}
       viewBox={`0 0 ${svgSize} ${svgSize}`}
@@ -90,6 +95,7 @@ export const QRCode = React.memo(function QRCode({
       className={className}
       style={style}
     >
+      <title id={titleId}>{ariaLabel ?? `QR code: ${value}`}</title>
       {/* Background */}
       {backgroundColor !== 'transparent' && (
         <rect width={svgSize} height={svgSize} fill={backgroundColor} />

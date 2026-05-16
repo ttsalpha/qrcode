@@ -63,4 +63,5 @@ export interface QRCodeProps {
   qr?: QROptions;
   className?: string;
   style?: CSSProperties;
+  ariaLabel?: string;
 }

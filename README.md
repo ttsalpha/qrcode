@@ -14,6 +14,7 @@ Lightweight, fully customizable React QR code library — pure SVG, zero depende
 - **3 dot styles** — square, circle, and snake-connected rounded
 - **Customizable corners** — independent style and color for each finder pattern part
 - **Logo support** — embed an image or any React element in the center
+- **Export helpers** — `toSVGString()` for SSR/server use, `toDataURL()` for PNG/JPEG download
 - **Tree-shakeable** — named exports only, ESM + CJS output
 
 ## Installation

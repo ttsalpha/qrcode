@@ -59,9 +59,8 @@ export default function App() {
   corner={{ square: { style: 'extra-rounded' } }}
   logo={{
     src: '/logo.png',
-    width: 48,
-    height: 48,
-    padding: 4,
+    size: 0.2,
+    margin: 4,
   }}
   qr={{ errorCorrectionLevel: 'H' }}
 />
@@ -130,11 +129,13 @@ interface CornerOptions {
 interface LogoOptions {
   src?: string; // https, relative path, blob:, or data:image/… URI
   element?: ReactNode; // takes priority over src if both provided
-  width?: number; // default: 20% of QR width
-  height?: number; // default: 20% of QR height
-  padding?: number; // transparent padding around the logo
+  size?: number; // logo size as a fraction of QR size (0–1), default: 0.2
+  margin?: number; // space between logo and edge of cleared area; larger = smaller logo
+  hideDots?: boolean; // clear QR dots behind the logo area, default: true
 }
 ```
+
+> **Logo size is automatically clamped** to keep the QR scannable based on `errorCorrectionLevel`: `L` → 0.15, `M` → 0.22, `Q` → 0.32, `H` → 0.40. Use `errorCorrectionLevel: 'H'` for the largest logo area.
 
 > **Security:** `javascript:` and non-image `data:` URIs in `src` are silently rejected. Never pass unsanitised user input as `element` — it is rendered verbatim inside a `<foreignObject>`.
 

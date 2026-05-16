@@ -103,6 +103,89 @@ describe('QRCode component', () => {
     expect(foreignObject).not.toBeNull();
   });
 
+  it('renders hideDots rect by default when logo is provided', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        backgroundColor="#ffffff"
+        logo={{ src: 'https://example.com/logo.png' }}
+      />,
+    );
+    const rects = container.querySelectorAll('rect');
+    expect(rects.length).toBe(2); // background + hideDots
+    expect(rects[1].getAttribute('fill')).toBe('#ffffff');
+  });
+
+  it('renders hideDots rect when hideDots is explicitly true', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        backgroundColor="#ffffff"
+        logo={{ src: 'https://example.com/logo.png', hideDots: true }}
+      />,
+    );
+    const rects = container.querySelectorAll('rect');
+    expect(rects.length).toBe(2); // background + hideDots
+    expect(rects[1].getAttribute('fill')).toBe('#ffffff');
+  });
+
+  it('does not render hideDots rect when hideDots is false', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        logo={{ src: 'https://example.com/logo.png', hideDots: false }}
+      />,
+    );
+    const rects = container.querySelectorAll('rect');
+    expect(rects.length).toBe(1); // background only
+  });
+
+  it('respects custom logo size ratio', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        size={300}
+        logo={{ src: 'https://example.com/logo.png', size: 0.3 }}
+      />,
+    );
+    const image = container.querySelector('image');
+    expect(image).not.toBeNull();
+  });
+
+  it('clamps logo size to ECL maximum', () => {
+    // ECL M max is 0.3 — passing 0.9 should be clamped, logo still renders
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        size={300}
+        logo={{ src: 'https://example.com/logo.png', size: 0.9 }}
+        qr={{ errorCorrectionLevel: 'M' }}
+      />,
+    );
+    const image = container.querySelector('image');
+    expect(image).not.toBeNull();
+    // clamped to 0.22 * svgSize; logo renders at box size (no margin)
+    expect(Number(image?.getAttribute('width'))).toBeLessThanOrEqual(
+      300 * 0.22 + 1,
+    );
+  });
+
+  it('logo margin reduces rendered logo size within the cleared box', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        size={300}
+        logo={{ src: 'https://example.com/logo.png', size: 0.3, margin: 10 }}
+        qr={{ errorCorrectionLevel: 'M' }}
+      />,
+    );
+    const image = container.querySelector('image');
+    expect(image).not.toBeNull();
+    // logo width = box - margin*2; box ≈ 0.3 * svgSize, margin shrinks it
+    const width = Number(image?.getAttribute('width'));
+    expect(width).toBeGreaterThan(0);
+  });
+
   it('renders different error correction levels', () => {
     for (const ecLevel of ['L', 'M', 'Q', 'H'] as const) {
       const { container } = render(

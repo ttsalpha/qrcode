@@ -61,13 +61,15 @@ export const QRCode = React.memo(function QRCode({
     [qrSize, moduleSize, marginPx],
   );
 
-  const logoWidth = logo?.width ?? svgSize * 0.2;
-  const logoHeight = logo?.height ?? svgSize * 0.2;
-  const logoPadding = logo?.padding ?? 0;
-  const logoX = (svgSize - logoWidth) / 2 - logoPadding;
-  const logoY = (svgSize - logoHeight) / 2 - logoPadding;
-  const logoPaddedWidth = logoWidth + logoPadding * 2;
-  const logoPaddedHeight = logoHeight + logoPadding * 2;
+  const maxLogoSize = { L: 0.15, M: 0.22, Q: 0.32, H: 0.4 }[ecLevel];
+  const logoSizeFraction = Math.min(logo?.size ?? 0.2, maxLogoSize);
+  const logoBoxSize = svgSize * logoSizeFraction;
+  const logoMargin = logo?.margin ?? 0;
+  const logoBoxX = (svgSize - logoBoxSize) / 2;
+  const logoBoxY = (svgSize - logoBoxSize) / 2;
+  const logoX = logoBoxX + logoMargin;
+  const logoY = logoBoxY + logoMargin;
+  const logoSize = logoBoxSize - logoMargin * 2;
 
   return (
     <svg
@@ -103,25 +105,38 @@ export const QRCode = React.memo(function QRCode({
       ))}
 
       {/* Logo */}
-      {logo && logo.element ? (
-        <foreignObject
-          x={logoX}
-          y={logoY}
-          width={logoPaddedWidth}
-          height={logoPaddedHeight}
-        >
-          {logo.element}
-        </foreignObject>
-      ) : logo?.src && isSafeSrc(logo.src) ? (
-        <image
-          href={logo.src}
-          x={logoX}
-          y={logoY}
-          width={logoPaddedWidth}
-          height={logoPaddedHeight}
-          preserveAspectRatio="xMidYMid meet"
-        />
-      ) : null}
+      {logo && (logo.element || (logo.src && isSafeSrc(logo.src))) && (
+        <>
+          {(logo.hideDots ?? true) && (
+            <rect
+              x={logoBoxX}
+              y={logoBoxY}
+              width={logoBoxSize}
+              height={logoBoxSize}
+              fill={backgroundColor}
+            />
+          )}
+          {logo.element ? (
+            <foreignObject
+              x={logoX}
+              y={logoY}
+              width={logoSize}
+              height={logoSize}
+            >
+              {logo.element}
+            </foreignObject>
+          ) : (
+            <image
+              href={logo.src}
+              x={logoX}
+              y={logoY}
+              width={logoSize}
+              height={logoSize}
+              preserveAspectRatio="xMidYMid meet"
+            />
+          )}
+        </>
+      )}
     </svg>
   );
 });

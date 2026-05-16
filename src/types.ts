@@ -18,9 +18,17 @@ export interface LogoOptions {
    * as it is rendered verbatim and can execute scripts.
    */
   element?: ReactNode;
-  width?: number;
-  height?: number;
-  padding?: number;
+  /**
+   * Logo size as a fraction of the QR size (0–1). Default: `0.2`
+   *
+   * Automatically clamped to keep the QR scannable based on error correction level:
+   * `L` → 0.15, `M` → 0.22, `Q` → 0.32, `H` → 0.40
+   */
+  size?: number;
+  /** Space between the logo and the edge of the cleared area. Larger = smaller logo. Default: `0` */
+  margin?: number;
+  /** Clear QR dots behind the logo area. Recommended when logo has transparency. */
+  hideDots?: boolean;
 }
 
 export interface CornerOptions {

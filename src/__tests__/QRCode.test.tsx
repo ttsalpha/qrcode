@@ -49,7 +49,8 @@ describe('QRCode component', () => {
   it('renders exactly 3 corner groups', () => {
     const { container } = render(<QRCode value="TEST" />);
     const groups = container.querySelectorAll('g');
-    expect(groups).toHaveLength(3);
+    // 1 wrapper <g> for QR content + 3 <g> from QRCorner
+    expect(groups).toHaveLength(4);
   });
 
   it('renders path elements for data modules', () => {
@@ -103,7 +104,7 @@ describe('QRCode component', () => {
     expect(foreignObject).not.toBeNull();
   });
 
-  it('renders hideDots rect by default when logo is provided', () => {
+  it('renders mask to hide dots by default when logo is provided', () => {
     const { container } = render(
       <QRCode
         value="TEST"
@@ -111,12 +112,10 @@ describe('QRCode component', () => {
         logo={{ src: 'https://example.com/logo.png' }}
       />,
     );
-    const rects = container.querySelectorAll('rect');
-    expect(rects.length).toBe(2); // background + hideDots
-    expect(rects[1].getAttribute('fill')).toBe('#ffffff');
+    expect(container.querySelector('mask')).not.toBeNull();
   });
 
-  it('renders hideDots rect when hideDots is explicitly true', () => {
+  it('renders mask when hideDots is explicitly true', () => {
     const { container } = render(
       <QRCode
         value="TEST"
@@ -124,18 +123,17 @@ describe('QRCode component', () => {
         logo={{ src: 'https://example.com/logo.png', hideDots: true }}
       />,
     );
-    const rects = container.querySelectorAll('rect');
-    expect(rects.length).toBe(2); // background + hideDots
-    expect(rects[1].getAttribute('fill')).toBe('#ffffff');
+    expect(container.querySelector('mask')).not.toBeNull();
   });
 
-  it('does not render hideDots rect when hideDots is false', () => {
+  it('does not render mask when hideDots is false', () => {
     const { container } = render(
       <QRCode
         value="TEST"
         logo={{ src: 'https://example.com/logo.png', hideDots: false }}
       />,
     );
+    expect(container.querySelector('mask')).toBeNull();
     const rects = container.querySelectorAll('rect');
     expect(rects.length).toBe(1); // background only
   });

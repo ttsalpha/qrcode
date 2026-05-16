@@ -65,6 +65,8 @@ export const QRCode = React.memo(function QRCode({
     [qrSize, moduleSize, marginPx],
   );
 
+  const maskId = React.useId().replace(/:/g, '');
+
   const maxLogoSize = { L: 0.15, M: 0.22, Q: 0.32, H: 0.4 }[ecLevel];
   const logoSizeFraction = Math.min(logo?.size ?? 0.2, maxLogoSize);
   const logoBoxSize = svgSize * logoSizeFraction;
@@ -74,6 +76,10 @@ export const QRCode = React.memo(function QRCode({
   const logoX = logoBoxX + logoMargin;
   const logoY = logoBoxY + logoMargin;
   const logoSize = logoBoxSize - logoMargin * 2;
+
+  const hasLogo =
+    !!logo && !!(logo.element || (logo.src && isSafeSrc(logo.src)));
+  const applyLogoMask = hasLogo && (logo.hideDots ?? true);
 
   return (
     <svg
@@ -89,37 +95,46 @@ export const QRCode = React.memo(function QRCode({
         <rect width={svgSize} height={svgSize} fill={backgroundColor} />
       )}
 
-      {/* Data modules */}
-      {paths.length > 0 && (
-        <path d={paths.map((p) => p.path).join(' ')} fill={dotColor} />
-      )}
-
-      {/* Finder patterns (corners) */}
-      {finderPatterns.map((fp, idx) => (
-        <QRCorner
-          key={`corner-${idx}`}
-          x={fp.x}
-          y={fp.y}
-          moduleSize={moduleSize}
-          squareStyle={squareStyle}
-          squareColor={squareColor}
-          dotStyle={cornerDotStyleVal}
-          dotColor={cornerDotColor}
-        />
-      ))}
-
-      {/* Logo */}
-      {logo && (logo.element || (logo.src && isSafeSrc(logo.src))) && (
-        <>
-          {(logo.hideDots ?? true) && (
+      {/* Mask cuts out the logo area regardless of background color */}
+      {applyLogoMask && (
+        <defs>
+          <mask id={maskId}>
+            <rect width={svgSize} height={svgSize} fill="white" />
             <rect
               x={logoBoxX}
               y={logoBoxY}
               width={logoBoxSize}
               height={logoBoxSize}
-              fill={backgroundColor}
+              fill="black"
             />
-          )}
+          </mask>
+        </defs>
+      )}
+
+      <g mask={applyLogoMask ? `url(#${maskId})` : undefined}>
+        {/* Data modules */}
+        {paths.length > 0 && (
+          <path d={paths.map((p) => p.path).join(' ')} fill={dotColor} />
+        )}
+
+        {/* Finder patterns (corners) */}
+        {finderPatterns.map((fp, idx) => (
+          <QRCorner
+            key={`corner-${idx}`}
+            x={fp.x}
+            y={fp.y}
+            moduleSize={moduleSize}
+            squareStyle={squareStyle}
+            squareColor={squareColor}
+            dotStyle={cornerDotStyleVal}
+            dotColor={cornerDotColor}
+          />
+        ))}
+      </g>
+
+      {/* Logo */}
+      {hasLogo && (
+        <>
           {logo.element ? (
             <foreignObject
               x={logoX}

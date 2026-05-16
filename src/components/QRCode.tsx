@@ -1,3 +1,5 @@
+'use client';
+
 import * as React from 'react';
 import type { QRCodeProps, CornerDotStyle, CornerSquareStyle } from '../types';
 import { generateQRMatrix } from '../core/matrix';

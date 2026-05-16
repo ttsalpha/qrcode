@@ -1,9 +1,10 @@
 {
   "name": "@ttsalpha/qrcode",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Lightweight, fully customizable React QR code library rendered as SVG",
   "author": "Son Tran",
   "license": "MIT",
+  "homepage": "https://qrcode.ttsalpha.com",
   "repository": {
     "type": "git",
     "url": "https://github.com/ttsalpha/qrcode.git"

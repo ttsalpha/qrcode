@@ -1,5 +1,7 @@
 'use client';
 
+declare const process: { env: { NODE_ENV: string } };
+
 import * as React from 'react';
 import type { QRCodeProps, CornerDotStyle, CornerSquareStyle } from '../types';
 import { generateQRMatrix } from '../core/matrix';
@@ -71,6 +73,15 @@ export const QRCode = React.memo(function QRCode({
   const titleId = uid + 't';
 
   const maxLogoSize = { L: 0.15, M: 0.22, Q: 0.32, H: 0.4 }[ecLevel];
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    logo?.size !== undefined &&
+    logo.size > maxLogoSize
+  ) {
+    console.warn(
+      `[QRCode] logo.size (${logo.size}) exceeds the maximum for error correction level "${ecLevel}" (${maxLogoSize}). Clamped to ${maxLogoSize}.`,
+    );
+  }
   const logoSizeFraction = Math.min(logo?.size ?? 0.2, maxLogoSize);
   const logoBoxSize = svgSize * logoSizeFraction;
   const logoMargin = logo?.margin ?? 0;

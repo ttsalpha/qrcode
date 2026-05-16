@@ -41,7 +41,7 @@ export default function App() {
 ```tsx
 <QRCode
   value="https://example.com"
-  width={256}
+  size={256}
   dotStyle="rounded"
   dotColor="#1a1a2e"
   corner={{
@@ -88,8 +88,7 @@ export default function App() {
 | Prop              | Type            | Default     | Description                           |
 | ----------------- | --------------- | ----------- | ------------------------------------- |
 | `value`           | `string`        | —           | The data to encode (required)         |
-| `width`           | `number`        | `256`       | SVG width in pixels                   |
-| `height`          | `number`        | `256`       | SVG height in pixels                  |
+| `size`            | `number`        | `256`       | SVG size in pixels                    |
 | `margin`          | `number`        | `4`         | Quiet zone size in modules            |
 | `dotStyle`        | `DotStyle`      | `'square'`  | Style of data modules                 |
 | `dotColor`        | `string`        | `'#000000'` | Color of data modules                 |

@@ -41,8 +41,7 @@ export interface QROptions {
 
 export interface QRCodeProps {
   value: string;
-  width?: number;
-  height?: number;
+  size?: number;
   margin?: number;
   dotStyle?: DotStyle;
   dotColor?: string;

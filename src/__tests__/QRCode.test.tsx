@@ -9,17 +9,15 @@ describe('QRCode component', () => {
     expect(svg).not.toBeNull();
   });
 
-  it('renders with default dimensions', () => {
+  it('renders with default size', () => {
     const { container } = render(<QRCode value="TEST" />);
     const svg = container.querySelector('svg');
     expect(svg?.getAttribute('width')).toBe('256');
     expect(svg?.getAttribute('height')).toBe('256');
   });
 
-  it('respects custom width and height', () => {
-    const { container } = render(
-      <QRCode value="TEST" width={400} height={400} />,
-    );
+  it('respects custom size', () => {
+    const { container } = render(<QRCode value="TEST" size={400} />);
     const svg = container.querySelector('svg');
     expect(svg?.getAttribute('width')).toBe('400');
     expect(svg?.getAttribute('height')).toBe('400');

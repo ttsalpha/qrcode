@@ -153,6 +153,16 @@ export function cornerSquarePath(
     return `${outer} ${cut}`;
   }
 
+  if (style === 'circle') {
+    const cx = x + size / 2;
+    const cy = y + size / 2;
+    const ro = size / 2;
+    const ri = inner / 2;
+    const circlePath = (r: number) =>
+      `M${cx - r},${cy}a${r},${r} 0 1,0 ${r * 2},0a${r},${r} 0 1,0 ${-r * 2},0z`;
+    return `${circlePath(ro)} ${circlePath(ri)}`;
+  }
+
   // extra-rounded: both outer and inner cutout get rounded corners
   const outer = roundedRect(x, y, size, size, size * 0.35);
   const cut = roundedRect(x + iOffset, y + iOffset, inner, inner, inner * 0.2);

@@ -115,13 +115,13 @@ interface CornerOptions {
     color?: string;
   };
   square?: {
-    style?: 'square' | 'rounded' | 'extra-rounded'; // outer 7×7 ring
+    style?: 'square' | 'rounded' | 'extra-rounded' | 'circle'; // outer 7×7 ring
     color?: string;
   };
 }
 ```
 
-> When `corner.square` is `'extra-rounded'` and `corner.dot.style` is not set, the dot style defaults to `'rounded'` automatically.
+> When `corner.dot.style` is not set, the inner dot style defaults based on the square style: `extra-rounded` → `rounded`, `circle` → `circle`, others → `square`.
 
 ### `LogoOptions`
 

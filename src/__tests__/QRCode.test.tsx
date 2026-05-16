@@ -204,7 +204,12 @@ describe('QRCode component', () => {
   });
 
   it('renders all corner square styles without error', () => {
-    for (const style of ['square', 'rounded', 'extra-rounded'] as const) {
+    for (const style of [
+      'square',
+      'rounded',
+      'extra-rounded',
+      'circle',
+    ] as const) {
       const { container } = render(
         <QRCode value="TEST" corner={{ square: { style } }} />,
       );
@@ -239,6 +244,16 @@ describe('QRCode component', () => {
           square: { style: 'extra-rounded', color: '#ff0000' },
           dot: { style: 'circle', color: '#0000ff' },
         }}
+      />,
+    );
+    expect(container.querySelector('svg')).not.toBeNull();
+  });
+
+  it('circle corner square defaults to circle dot style', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        corner={{ square: { style: 'circle', color: '#ff0000' } }}
       />,
     );
     expect(container.querySelector('svg')).not.toBeNull();

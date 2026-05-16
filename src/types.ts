@@ -2,7 +2,11 @@ import type { ReactNode, CSSProperties } from 'react';
 
 export type DotStyle = 'square' | 'circle' | 'rounded';
 export type CornerDotStyle = 'square' | 'rounded' | 'circle';
-export type CornerSquareStyle = 'square' | 'rounded' | 'extra-rounded';
+export type CornerSquareStyle =
+  | 'square'
+  | 'rounded'
+  | 'extra-rounded'
+  | 'circle';
 export type ErrorCorrectionLevel = 'L' | 'M' | 'Q' | 'H';
 export type EncodingMode = 'numeric' | 'alphanumeric' | 'byte';
 

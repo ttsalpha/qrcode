@@ -47,7 +47,11 @@ export const QRCode = React.memo(function QRCode({
   const squareStyle: CornerSquareStyle = corner?.square?.style ?? 'square';
   const squareColor = corner?.square?.color ?? dotColor;
   const defaultCornerDotStyle: CornerDotStyle =
-    squareStyle === 'extra-rounded' ? 'rounded' : 'square';
+    squareStyle === 'extra-rounded'
+      ? 'rounded'
+      : squareStyle === 'circle'
+        ? 'circle'
+        : 'square';
   const cornerDotStyleVal: CornerDotStyle =
     corner?.dot?.style ?? defaultCornerDotStyle;
   const cornerDotColor = corner?.dot?.color ?? dotColor;

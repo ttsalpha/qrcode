@@ -90,9 +90,9 @@ export const QRCode = React.memo(function QRCode({
       )}
 
       {/* Data modules */}
-      {paths.map(({ path, row, col }) => (
-        <path key={`dot-${row}-${col}`} d={path} fill={dotColor} />
-      ))}
+      {paths.length > 0 && (
+        <path d={paths.map((p) => p.path).join(' ')} fill={dotColor} />
+      )}
 
       {/* Finder patterns (corners) */}
       {finderPatterns.map((fp, idx) => (

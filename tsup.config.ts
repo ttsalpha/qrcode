@@ -8,4 +8,7 @@ export default defineConfig({
   target: 'es2018',
   clean: true,
   sourcemap: true,
+  banner: {
+    js: '"use client";',
+  },
 });

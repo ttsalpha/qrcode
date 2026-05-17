@@ -6,6 +6,10 @@ Lightweight, fully customizable React QR code library — pure SVG, zero depende
 [![license](https://img.shields.io/npm/l/@ttsalpha/qrcode)](./LICENSE)
 [![CI](https://github.com/ttsalpha/qrcode/actions/workflows/ci.yml/badge.svg)](https://github.com/ttsalpha/qrcode/actions/workflows/ci.yml)
 
+## Showcase
+
+<img src="https://cdn.ttsalpha.com/qrcode/01.svg" width="160" alt="Square QR code" /> <img src="https://cdn.ttsalpha.com/qrcode/02.svg" width="160" alt="Rounded QR code" /> <img src="https://cdn.ttsalpha.com/qrcode/03.svg" width="160" alt="Circle QR code" />
+
 ## Features
 
 - **Pure SVG** — no canvas, no raster images, scales perfectly at any size

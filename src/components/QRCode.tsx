@@ -17,6 +17,10 @@ function isSafeSrc(src: string): boolean {
   return true;
 }
 
+// Avoid useLayoutEffect SSR warning while still running synchronously on the client
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+
 export const QRCode = React.memo(function QRCode({
   value,
   size = 256,
@@ -33,6 +37,52 @@ export const QRCode = React.memo(function QRCode({
 }: QRCodeProps): React.JSX.Element {
   const ecLevel = qr?.errorCorrectionLevel ?? 'M';
   const requestedVersion = qr?.version;
+
+  const [srcAspectRatio, setSrcAspectRatio] = React.useState(1);
+  const [elementAspectRatio, setElementAspectRatio] = React.useState(1);
+  const measureRef = React.useRef<HTMLDivElement>(null);
+
+  // Sync before first paint — handles cached images and static elements with no flash.
+  // Falls back to async for uncached images (onload) and dynamic elements (ResizeObserver).
+  useIsomorphicLayoutEffect(() => {
+    if (!logo?.src || !isSafeSrc(logo.src)) {
+      setSrcAspectRatio(1);
+      return;
+    }
+    const img = new window.Image();
+    img.src = logo.src;
+    if (img.complete && img.naturalWidth && img.naturalHeight) {
+      setSrcAspectRatio(img.naturalWidth / img.naturalHeight);
+      return;
+    }
+    setSrcAspectRatio(1);
+    img.onload = () => {
+      if (img.naturalWidth && img.naturalHeight)
+        setSrcAspectRatio(img.naturalWidth / img.naturalHeight);
+    };
+    return () => {
+      img.onload = null;
+    };
+  }, [logo?.src]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (!measureRef.current || !logo?.element) return;
+    const { width, height } = measureRef.current.getBoundingClientRect();
+    if (width && height) setElementAspectRatio(width / height);
+  }, [logo?.element]);
+
+  // ResizeObserver as safety net for elements whose size changes after mount
+  // (e.g. logo.element contains an <img> that loads asynchronously).
+  React.useEffect(() => {
+    if (!measureRef.current || !logo?.element) return;
+    const el = measureRef.current;
+    const observer = new ResizeObserver((entries) => {
+      const r = entries[0]?.contentRect;
+      if (r?.width && r.height) setElementAspectRatio(r.width / r.height);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [logo?.element]);
 
   const { matrix, size: qrSize } = React.useMemo(
     () => generateQRMatrix(value, ecLevel, requestedVersion),
@@ -83,94 +133,113 @@ export const QRCode = React.memo(function QRCode({
     );
   }
   const logoSizeFraction = Math.min(logo?.size ?? 0.2, maxLogoSize);
-  const logoBoxSize = svgSize * logoSizeFraction;
+  const aspectRatio = logo?.element ? elementAspectRatio : srcAspectRatio;
+  const logoBoxHeight = svgSize * logoSizeFraction;
+  const logoBoxWidth = logoBoxHeight * aspectRatio;
   const logoMargin = logo?.margin ?? 0;
-  const logoBoxX = (svgSize - logoBoxSize) / 2;
-  const logoBoxY = (svgSize - logoBoxSize) / 2;
+  const logoBoxX = (svgSize - logoBoxWidth) / 2;
+  const logoBoxY = (svgSize - logoBoxHeight) / 2;
   const logoX = logoBoxX + logoMargin;
   const logoY = logoBoxY + logoMargin;
-  const logoSize = logoBoxSize - logoMargin * 2;
+  const logoWidth = logoBoxWidth - logoMargin * 2;
+  const logoHeight = logoBoxHeight - logoMargin * 2;
 
   const hasLogo =
     !!logo && !!(logo.element || (logo.src && isSafeSrc(logo.src)));
   const applyLogoMask = hasLogo && (logo.hideDots ?? true);
 
   return (
-    <svg
-      role="img"
-      aria-labelledby={titleId}
-      width={size}
-      height={size}
-      viewBox={`0 0 ${svgSize} ${svgSize}`}
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      style={style}
-    >
-      <title id={titleId}>{ariaLabel ?? `QR code: ${value}`}</title>
-      {/* Background */}
-      {backgroundColor !== 'transparent' && (
-        <rect width={svgSize} height={svgSize} fill={backgroundColor} />
+    <>
+      {logo?.element && (
+        <div
+          ref={measureRef}
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: '-200vw',
+            display: 'inline-block',
+            visibility: 'hidden',
+            pointerEvents: 'none',
+          }}
+        >
+          {logo.element}
+        </div>
       )}
+      <svg
+        role="img"
+        aria-labelledby={titleId}
+        width={size}
+        height={size}
+        viewBox={`0 0 ${svgSize} ${svgSize}`}
+        xmlns="http://www.w3.org/2000/svg"
+        className={className}
+        style={style}
+      >
+        <title id={titleId}>{ariaLabel ?? `QR code: ${value}`}</title>
+        {/* Background */}
+        {backgroundColor !== 'transparent' && (
+          <rect width={svgSize} height={svgSize} fill={backgroundColor} />
+        )}
 
-      {/* Mask cuts out the logo area regardless of background color */}
-      {applyLogoMask && (
-        <defs>
-          <mask id={maskId}>
-            <rect width={svgSize} height={svgSize} fill="white" />
-            <rect
-              x={logoBoxX}
-              y={logoBoxY}
-              width={logoBoxSize}
-              height={logoBoxSize}
-              fill="black"
+        {/* Mask cuts out the logo area regardless of background color */}
+        {applyLogoMask && (
+          <defs>
+            <mask id={maskId}>
+              <rect width={svgSize} height={svgSize} fill="white" />
+              <rect
+                x={logoBoxX}
+                y={logoBoxY}
+                width={logoBoxWidth}
+                height={logoBoxHeight}
+                fill="black"
+              />
+            </mask>
+          </defs>
+        )}
+
+        <g mask={applyLogoMask ? `url(#${maskId})` : undefined}>
+          {/* Data modules */}
+          {paths.length > 0 && <path d={paths.join(' ')} fill={dotColor} />}
+
+          {/* Finder patterns (corners) */}
+          {finderPatterns.map((fp, idx) => (
+            <QRCorner
+              key={`corner-${idx}`}
+              x={fp.x}
+              y={fp.y}
+              moduleSize={moduleSize}
+              squareStyle={squareStyle}
+              squareColor={squareColor}
+              dotStyle={cornerDotStyleVal}
+              dotColor={cornerDotColor}
             />
-          </mask>
-        </defs>
-      )}
+          ))}
+        </g>
 
-      <g mask={applyLogoMask ? `url(#${maskId})` : undefined}>
-        {/* Data modules */}
-        {paths.length > 0 && <path d={paths.join(' ')} fill={dotColor} />}
-
-        {/* Finder patterns (corners) */}
-        {finderPatterns.map((fp, idx) => (
-          <QRCorner
-            key={`corner-${idx}`}
-            x={fp.x}
-            y={fp.y}
-            moduleSize={moduleSize}
-            squareStyle={squareStyle}
-            squareColor={squareColor}
-            dotStyle={cornerDotStyleVal}
-            dotColor={cornerDotColor}
-          />
-        ))}
-      </g>
-
-      {/* Logo */}
-      {hasLogo && (
-        <>
-          {logo.element ? (
-            <foreignObject
-              x={logoX}
-              y={logoY}
-              width={logoSize}
-              height={logoSize}
-            >
-              {logo.element}
-            </foreignObject>
-          ) : (
-            <image
-              href={logo.src}
-              x={logoX}
-              y={logoY}
-              width={logoSize}
-              height={logoSize}
-              preserveAspectRatio="xMidYMid meet"
-            />
-          )}
-        </>
-      )}
-    </svg>
+        {/* Logo */}
+        {hasLogo && (
+          <>
+            {logo.element ? (
+              <foreignObject
+                x={logoX}
+                y={logoY}
+                width={logoWidth}
+                height={logoHeight}
+              >
+                {logo.element}
+              </foreignObject>
+            ) : (
+              <image
+                href={logo.src}
+                x={logoX}
+                y={logoY}
+                width={logoWidth}
+                height={logoHeight}
+              />
+            )}
+          </>
+        )}
+      </svg>
+    </>
   );
 });

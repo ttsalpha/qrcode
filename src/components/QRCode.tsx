@@ -122,18 +122,23 @@ export const QRCode = React.memo(function QRCode({
   const maskId = uid + 'm';
   const titleId = uid + 't';
 
-  const maxLogoSize = { L: 0.15, M: 0.22, Q: 0.32, H: 0.4 }[ecLevel];
+  // maxLogoAreaFraction = currentLinear² — square logos (AR=1) behave identically to before.
+  // For non-square logos: maxHeight = sqrt(maxArea / AR), capping total masked area.
+  const maxLogoAreaFraction = { L: 0.0225, M: 0.0484, Q: 0.1024, H: 0.16 }[
+    ecLevel
+  ];
+  const aspectRatio = logo?.element ? elementAspectRatio : srcAspectRatio;
+  const maxHeightFraction = Math.sqrt(maxLogoAreaFraction / aspectRatio);
   if (
     process.env.NODE_ENV !== 'production' &&
     logo?.size !== undefined &&
-    logo.size > maxLogoSize
+    logo.size * logo.size * aspectRatio > maxLogoAreaFraction
   ) {
     console.warn(
-      `[QRCode] logo.size (${logo.size}) exceeds the maximum for error correction level "${ecLevel}" (${maxLogoSize}). Clamped to ${maxLogoSize}.`,
+      `[QRCode] logo.size (${logo.size}) with aspect ratio ${aspectRatio.toFixed(2)} exceeds the area budget for ECL "${ecLevel}" (max height: ${maxHeightFraction.toFixed(4)}). Clamped.`,
     );
   }
-  const logoSizeFraction = Math.min(logo?.size ?? 0.2, maxLogoSize);
-  const aspectRatio = logo?.element ? elementAspectRatio : srcAspectRatio;
+  const logoSizeFraction = Math.min(logo?.size ?? 0.2, maxHeightFraction);
   const logoBoxHeight = svgSize * logoSizeFraction;
   const logoBoxWidth = logoBoxHeight * aspectRatio;
   const logoMargin = logo?.margin ?? 0;

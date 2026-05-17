@@ -150,8 +150,8 @@ describe('QRCode component', () => {
     expect(image).not.toBeNull();
   });
 
-  it('clamps logo size to ECL maximum', () => {
-    // ECL M max is 0.3 — passing 0.9 should be clamped, logo still renders
+  it('clamps logo size to ECL maximum (AR=1, area-based = linear-based)', () => {
+    // AR=1: maxHeightFraction = sqrt(0.0484/1) = 0.22, same as the old linear cap
     const { container } = render(
       <QRCode
         value="TEST"
@@ -316,6 +316,73 @@ describe('QRCode component', () => {
 
       delete (Image.prototype as Partial<typeof Image.prototype>).naturalWidth;
       delete (Image.prototype as Partial<typeof Image.prototype>).naturalHeight;
+    });
+
+    it('logo.src: clamps height for wide logo to respect area budget', () => {
+      // AR=3, ECL H: maxHeight = sqrt(0.16/3) ≈ 0.231
+      // Old code would allow height=0.40, width=1.20 (>QR width), area=0.48
+      Object.defineProperty(Image.prototype, 'naturalWidth', {
+        value: 300,
+        configurable: true,
+      });
+      Object.defineProperty(Image.prototype, 'naturalHeight', {
+        value: 100,
+        configurable: true,
+      });
+
+      const { container } = render(
+        <QRCode
+          value="TEST"
+          size={300}
+          logo={{ src: 'https://example.com/wide3x.png', size: 0.4 }}
+          qr={{ errorCorrectionLevel: 'H' }}
+        />,
+      );
+      const image = container.querySelector('image');
+      expect(image).not.toBeNull();
+      const w = Number(image?.getAttribute('width'));
+      const h = Number(image?.getAttribute('height'));
+      const svgSize = 300;
+
+      expect(h).toBeLessThan(svgSize * 0.4); // height must be clamped below old linear limit
+      expect((w * h) / (svgSize * svgSize)).toBeLessThanOrEqual(0.16 + 0.01); // area within H-level budget
+      expect(w).toBeLessThan(svgSize); // width must not overflow QR
+
+      delete (Image.prototype as Partial<typeof Image.prototype>).naturalWidth;
+      delete (Image.prototype as Partial<typeof Image.prototype>).naturalHeight;
+    });
+
+    it('warns when wide logo exceeds area budget', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      Object.defineProperty(Image.prototype, 'naturalWidth', {
+        value: 200,
+        configurable: true,
+      });
+      Object.defineProperty(Image.prototype, 'naturalHeight', {
+        value: 100,
+        configurable: true,
+      });
+
+      render(
+        <QRCode
+          value="TEST"
+          size={300}
+          logo={{ src: 'https://example.com/wide.png', size: 0.4 }}
+          qr={{ errorCorrectionLevel: 'H' }}
+        />,
+      );
+
+      // AR=2, size=0.4: 0.4² × 2 = 0.32 > 0.16 → should warn
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[QRCode] logo.size'),
+      );
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('aspect ratio'),
+      );
+
+      delete (Image.prototype as Partial<typeof Image.prototype>).naturalWidth;
+      delete (Image.prototype as Partial<typeof Image.prototype>).naturalHeight;
+      warnSpy.mockRestore();
     });
 
     it('logo.element: uses aspect ratio from ResizeObserver measurement', () => {

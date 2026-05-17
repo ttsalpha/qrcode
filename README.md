@@ -71,7 +71,7 @@ export default function App() {
 />
 ```
 
-> When using a logo, set `errorCorrectionLevel: 'H'` — it recovers up to 30% of occluded modules.
+> Use `errorCorrectionLevel: 'H'` with a logo — it allows the largest logo area (up to 30% of QR area recovered). Non-square logos are supported; the aspect ratio is detected automatically.
 
 ### With a React element as logo
 
@@ -134,13 +134,13 @@ interface CornerOptions {
 interface LogoOptions {
   src?: string; // https, relative path, blob:, or data:image/… URI
   element?: ReactNode; // takes priority over src if both provided
-  size?: number; // logo size as a fraction of QR size (0–1), default: 0.2
+  size?: number; // logo height as a fraction of QR size (0–1), default: 0.2; aspect ratio is auto-detected
   margin?: number; // space between logo and edge of cleared area; larger = smaller logo
   hideDots?: boolean; // clear QR dots behind the logo area, default: true
 }
 ```
 
-> **Logo size is automatically clamped** to keep the QR scannable based on `errorCorrectionLevel`: `L` → 0.15, `M` → 0.22, `Q` → 0.32, `H` → 0.40. Use `errorCorrectionLevel: 'H'` for the largest logo area.
+> **Logo size is automatically clamped** based on `errorCorrectionLevel` and the logo's detected aspect ratio, so the total masked area stays within the EC recovery budget. For square logos the height limits are: `L` → 0.15, `M` → 0.22, `Q` → 0.32, `H` → 0.40. For landscape logos the height is reduced proportionally — the logo is never wider than the QR itself.
 
 > **Security:** `javascript:` and non-image `data:` URIs in `src` are silently rejected. Never pass unsanitised user input as `element` — it is rendered verbatim inside a `<foreignObject>`.
 

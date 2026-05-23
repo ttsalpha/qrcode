@@ -23,13 +23,21 @@ export interface LogoOptions {
    */
   element?: ReactNode;
   /**
-   * Logo height as a fraction of the QR size (0–1). Default: `0.2`
+   * Logo size on a 0–1 scale relative to the maximum safe area.
+   * `0` = no logo, `1` = the largest safe logo (covers ~9% of QR area, uses ECL H).
+   * Default: `0.4`.
    *
-   * Clamped based on ECL and the logo's detected aspect ratio so that the total
-   * masked area (width × height) stays within the EC recovery budget.
-   * For square logos the effective limit is: `L` → 0.15, `M` → 0.22, `Q` → 0.32, `H` → 0.40.
-   * For landscape logos the height limit is reduced so the covered area does not exceed
-   * those square-logo area equivalents.
+   * If `qr.errorCorrectionLevel` is not set, the component auto-picks the lowest ECL
+   * that safely supports the requested size:
+   * - `size ≤ 0.25` → ECL L
+   * - `size ≤ 0.44` → ECL M
+   * - `size ≤ 0.69` → ECL Q
+   * - `size ≤ 1.00` → ECL H
+   *
+   * If `errorCorrectionLevel` is set, the size is clamped to that ECL's safe limit
+   * and a console warning is emitted (development only) when clamping occurs.
+   *
+   * Aspect ratio is auto-detected from `src` or `element`.
    */
   size?: number;
   /** Space between the logo and the edge of the cleared area. Larger = smaller logo. Default: `0` */

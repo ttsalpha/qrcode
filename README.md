@@ -64,14 +64,13 @@ export default function App() {
   corner={{ square: { style: 'extra-rounded' } }}
   logo={{
     src: '/logo.png',
-    size: 0.2,
+    size: 0.5,
     margin: 4,
   }}
-  qr={{ errorCorrectionLevel: 'H' }}
 />
 ```
 
-> Use `errorCorrectionLevel: 'H'` with a logo — it allows the largest logo area (up to 30% of QR area recovered). Non-square logos are supported; the aspect ratio is detected automatically.
+> `logo.size` is a 0–1 scale relative to the maximum safe area — the component auto-picks the lowest ECL that can support the requested size. Set `qr.errorCorrectionLevel` explicitly only if you need to override this. Non-square logos are supported; aspect ratio is detected automatically.
 
 ### With a React element as logo
 
@@ -134,13 +133,13 @@ interface CornerOptions {
 interface LogoOptions {
   src?: string; // https, relative path, blob:, or data:image/… URI
   element?: ReactNode; // takes priority over src if both provided
-  size?: number; // logo height as a fraction of QR size (0–1), default: 0.2; aspect ratio is auto-detected
+  size?: number; // 0–1 relative to max safe area, default: 0.4; ECL auto-picked; aspect ratio auto-detected
   margin?: number; // space between logo and edge of cleared area; larger = smaller logo
   hideDots?: boolean; // clear QR dots behind the logo area, default: true
 }
 ```
 
-> **Logo size is automatically clamped** based on `errorCorrectionLevel` and the logo's detected aspect ratio, so the total masked area stays within the EC recovery budget. For square logos the height limits are: `L` → 0.15, `M` → 0.22, `Q` → 0.32, `H` → 0.40. For landscape logos the height is reduced proportionally — the logo is never wider than the QR itself.
+> **ECL is auto-picked** based on `logo.size` — no need to set `qr.errorCorrectionLevel` manually. The size scale maps to empirical safe linear limits: `size ≤ 0.25` → ECL L (logo ≤ 15% width), `≤ 0.44` → ECL M (≤ 20%), `≤ 0.69` → ECL Q (≤ 25%), `≤ 1.0` → ECL H (≤ 30%). If ECL is set explicitly, the logo size is clamped to that ECL's limit. For landscape logos the height is reduced proportionally — the logo is never wider than the QR itself.
 
 > **Security:** `javascript:` and non-image `data:` URIs in `src` are silently rejected. Never pass unsanitised user input as `element` — it is rendered verbatim inside a `<foreignObject>`.
 

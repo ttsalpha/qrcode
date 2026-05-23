@@ -3,7 +3,12 @@
 declare const process: { env: { NODE_ENV: string } };
 
 import * as React from 'react';
-import type { QRCodeProps, CornerDotStyle, CornerSquareStyle } from '../types';
+import type {
+  QRCodeProps,
+  CornerDotStyle,
+  CornerSquareStyle,
+  ErrorCorrectionLevel,
+} from '../types';
 import { generateQRMatrix } from '../core/matrix';
 import { renderDataModules, getFinderPatterns } from '../renderer/svg';
 import { QRCorner } from './QRCorner';
@@ -15,6 +20,19 @@ function isSafeSrc(src: string): boolean {
   if (s.startsWith('javascript:')) return false;
   if (s.startsWith('data:') && !s.startsWith('data:image/')) return false;
   return true;
+}
+
+// Max logo area as fraction of svgSize² per ECL. sqrt(value) = linear logo/svgSize.
+// Empirical safe linear limits: L≤15%, M≤20%, Q≤25%, H≤30%.
+const SAFE_AREAS = { L: 0.0225, M: 0.04, Q: 0.0625, H: 0.09 } as const;
+const MAX_SAFE_AREA = SAFE_AREAS.H;
+const DEFAULT_SIZE_RATIO = 0.4;
+
+function pickECLForArea(area: number): ErrorCorrectionLevel {
+  if (area <= SAFE_AREAS.L) return 'L';
+  if (area <= SAFE_AREAS.M) return 'M';
+  if (area <= SAFE_AREAS.Q) return 'Q';
+  return 'H';
 }
 
 // Avoid useLayoutEffect SSR warning while still running synchronously on the client
@@ -35,8 +53,40 @@ export const QRCode = React.memo(function QRCode({
   style,
   ariaLabel,
 }: QRCodeProps): React.JSX.Element {
-  const ecLevel = qr?.errorCorrectionLevel ?? 'M';
   const requestedVersion = qr?.version;
+  const userECL = qr?.errorCorrectionLevel;
+  const userSize = logo?.size;
+  const hasLogoSrc = !!(logo?.element || (logo?.src && isSafeSrc(logo.src)));
+
+  // Normalize user size [0, 1] → absolute area (fraction of svgSize²).
+  const sizeRatio = hasLogoSrc
+    ? userSize !== undefined
+      ? Math.max(0, Math.min(1, userSize))
+      : DEFAULT_SIZE_RATIO
+    : 0;
+  const targetArea = sizeRatio * MAX_SAFE_AREA;
+
+  // Resolve effective ECL + area: respect explicit ECL, otherwise auto-pick.
+  let ecLevel: ErrorCorrectionLevel;
+  let absoluteArea: number;
+  if (userECL) {
+    ecLevel = userECL;
+    absoluteArea = Math.min(targetArea, SAFE_AREAS[userECL]);
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      targetArea > SAFE_AREAS[userECL]
+    ) {
+      console.warn(
+        `[QRCode] logo.size=${userSize} needs ECL ≥ "${pickECLForArea(targetArea)}"; ECL "${userECL}" set, logo clamped.`,
+      );
+    }
+  } else if (targetArea > 0) {
+    ecLevel = pickECLForArea(targetArea);
+    absoluteArea = targetArea;
+  } else {
+    ecLevel = 'M';
+    absoluteArea = 0;
+  }
 
   const [srcAspectRatio, setSrcAspectRatio] = React.useState(1);
   const [elementAspectRatio, setElementAspectRatio] = React.useState(1);
@@ -122,25 +172,10 @@ export const QRCode = React.memo(function QRCode({
   const maskId = uid + 'm';
   const titleId = uid + 't';
 
-  // maxLogoAreaFraction = currentLinear² — square logos (AR=1) behave identically to before.
-  // For non-square logos: maxHeight = sqrt(maxArea / AR), capping total masked area.
-  const maxLogoAreaFraction = { L: 0.0225, M: 0.0484, Q: 0.1024, H: 0.16 }[
-    ecLevel
-  ];
   const aspectRatio = logo?.element ? elementAspectRatio : srcAspectRatio;
-  const maxHeightFraction = Math.sqrt(maxLogoAreaFraction / aspectRatio);
-  if (
-    process.env.NODE_ENV !== 'production' &&
-    logo?.size !== undefined &&
-    logo.size * logo.size * aspectRatio > maxLogoAreaFraction
-  ) {
-    console.warn(
-      `[QRCode] logo.size (${logo.size}) with aspect ratio ${aspectRatio.toFixed(2)} exceeds the area budget for ECL "${ecLevel}" (max height: ${maxHeightFraction.toFixed(4)}). Clamped.`,
-    );
-  }
-  const logoSizeFraction = Math.min(logo?.size ?? 0.2, maxHeightFraction);
-  const logoBoxHeight = svgSize * logoSizeFraction;
-  const logoBoxWidth = logoBoxHeight * aspectRatio;
+  const clampedArea = absoluteArea * svgSize * svgSize;
+  const logoBoxWidth = Math.sqrt(clampedArea * aspectRatio);
+  const logoBoxHeight = Math.sqrt(clampedArea / aspectRatio);
   const logoMargin = logo?.margin ?? 0;
   const logoBoxX = (svgSize - logoBoxWidth) / 2;
   const logoBoxY = (svgSize - logoBoxHeight) / 2;
@@ -149,9 +184,7 @@ export const QRCode = React.memo(function QRCode({
   const logoWidth = logoBoxWidth - logoMargin * 2;
   const logoHeight = logoBoxHeight - logoMargin * 2;
 
-  const hasLogo =
-    !!logo && !!(logo.element || (logo.src && isSafeSrc(logo.src)));
-  const applyLogoMask = hasLogo && (logo.hideDots ?? true);
+  const applyLogoMask = hasLogoSrc && (logo?.hideDots ?? true);
 
   return (
     <>
@@ -222,7 +255,7 @@ export const QRCode = React.memo(function QRCode({
         </g>
 
         {/* Logo */}
-        {hasLogo && (
+        {hasLogoSrc && logo && (
           <>
             {logo.element ? (
               <foreignObject

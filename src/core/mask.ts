@@ -189,6 +189,32 @@ export function calculatePenalty(matrix: boolean[][]): number {
   );
 }
 
+function applyMaskInPlace(
+  matrix: boolean[][],
+  functionModules: boolean[][],
+  pattern: MaskPattern,
+): void {
+  const condition = MASK_CONDITIONS[pattern];
+  for (let r = 0; r < matrix.length; r++) {
+    const row = matrix[r];
+    const fnRow = functionModules[r];
+    for (let c = 0; c < row.length; c++) {
+      if (!fnRow[c] && condition(r, c)) row[c] = !row[c];
+    }
+  }
+}
+
+// Select best mask AND apply it in-place, returning the chosen pattern.
+// Eliminates the extra applyMask allocation in the caller.
+export function selectAndApplyBestMask(
+  matrix: boolean[][],
+  functionModules: boolean[][],
+): MaskPattern {
+  const best = selectBestMask(matrix, functionModules);
+  applyMaskInPlace(matrix, functionModules, best);
+  return best;
+}
+
 export function selectBestMask(
   matrix: boolean[][],
   functionModules: boolean[][],
@@ -197,12 +223,13 @@ export function selectBestMask(
   let bestPenalty = Infinity;
 
   for (let p = 0; p < 8; p++) {
-    const masked = applyMask(matrix, functionModules, p as MaskPattern);
-    const penalty = calculatePenalty(masked);
+    applyMaskInPlace(matrix, functionModules, p as MaskPattern);
+    const penalty = calculatePenalty(matrix);
     if (penalty < bestPenalty) {
       bestPenalty = penalty;
       bestMask = p as MaskPattern;
     }
+    applyMaskInPlace(matrix, functionModules, p as MaskPattern); // XOR undo
   }
 
   return bestMask;

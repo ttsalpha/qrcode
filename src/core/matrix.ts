@@ -1,6 +1,6 @@
 import type { ErrorCorrectionLevel } from '../types';
 import { encodeQR } from './encode';
-import { applyMask, selectBestMask } from './mask';
+import { selectAndApplyBestMask } from './mask';
 
 // Alignment pattern center positions per version (ISO 18004 Annex E)
 const ALIGNMENT_PATTERN_TABLE: number[][] = [
@@ -364,20 +364,15 @@ export function generateQRMatrix(
   // Place data bits
   placeDataBits(matrix, functionModules, codewords);
 
-  // Select best mask
-  const bestMask = selectBestMask(matrix, functionModules);
+  // Select best mask and apply it in-place — eliminates two extra array allocations
+  const bestMask = selectAndApplyBestMask(matrix, functionModules);
 
-  // Apply mask
-  const maskedMatrix = applyMask(matrix, functionModules, bestMask);
-
-  // Write format information
+  // Write format information in-place on the already-masked matrix
   const ecFormatIdx = EC_LEVEL_FORMAT_INDEX[ecLevel];
   const formatBits = FORMAT_INFO_TABLE[ecFormatIdx * 8 + bestMask];
-  const finalMatrix = maskedMatrix.map((row) => row.slice());
+  writeFormatInfo(matrix, formatBits, size);
 
-  writeFormatInfo(finalMatrix, formatBits, size);
-
-  return { matrix: finalMatrix, version, size };
+  return { matrix, version, size };
 }
 
 // Writes the 15-bit format information into both copies in the matrix.

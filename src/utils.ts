@@ -2,9 +2,14 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { QRCodeProps } from './types';
 import { QRCode } from './components/QRCode';
+import { buildSVGString } from './renderer/svgDirect';
 
 export function toSVGString(props: QRCodeProps): string {
-  return renderToStaticMarkup(createElement(QRCode, props));
+  // logo.element is a React node — must go through renderToStaticMarkup
+  if (props.logo?.element) {
+    return renderToStaticMarkup(createElement(QRCode, props));
+  }
+  return buildSVGString(props);
 }
 
 export type ImageFormat = 'png' | 'jpeg';

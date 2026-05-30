@@ -181,10 +181,11 @@ export const QRCode = React.memo(function QRCode({
   const logoBoxY = (svgSize - logoBoxHeight) / 2;
   const logoX = logoBoxX + logoMargin;
   const logoY = logoBoxY + logoMargin;
-  const logoWidth = logoBoxWidth - logoMargin * 2;
-  const logoHeight = logoBoxHeight - logoMargin * 2;
+  const logoWidth = Math.max(0, logoBoxWidth - logoMargin * 2);
+  const logoHeight = Math.max(0, logoBoxHeight - logoMargin * 2);
 
-  const applyLogoMask = hasLogoSrc && (logo?.hideDots ?? true);
+  const applyLogoMask =
+    hasLogoSrc && logoWidth > 0 && logoHeight > 0 && (logo?.hideDots ?? true);
 
   return (
     <>
@@ -255,7 +256,7 @@ export const QRCode = React.memo(function QRCode({
         </g>
 
         {/* Logo */}
-        {hasLogoSrc && logo && (
+        {hasLogoSrc && logo && logoWidth > 0 && logoHeight > 0 && (
           <>
             {logo.element ? (
               <foreignObject

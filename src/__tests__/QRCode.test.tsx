@@ -399,9 +399,8 @@ describe('QRCode component', () => {
           logo={{ src: 'https://example.com/logo.png', size: 0 }}
         />,
       );
-      const image = container.querySelector('image');
-      // logo width should be 0
-      expect(Number(image?.getAttribute('width'))).toBe(0);
+      // logo with size=0 produces zero dimensions — should not render
+      expect(container.querySelector('image')).toBeNull();
     });
 
     it('logo.element: uses aspect ratio from ResizeObserver measurement', () => {

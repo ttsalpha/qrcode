@@ -233,8 +233,6 @@ export function buildSVGString(props: QRCodeProps): string {
   const titleId = `${uid}t`;
   const maskId = `${uid}m`;
 
-  const applyLogoMask = hasLogo && (logo?.hideDots ?? true);
-
   // Data modules
   const finderModules = getFinderPatternModules(qrSize);
   const dataPath =
@@ -251,8 +249,11 @@ export function buildSVGString(props: QRCodeProps): string {
   const logoBoxY = r2((svgSize - logoBoxHeight) / 2);
   const logoX = r2(logoBoxX + logoMargin);
   const logoY = r2(logoBoxY + logoMargin);
-  const logoWidth = r2(logoBoxWidth - logoMargin * 2);
-  const logoHeight = r2(logoBoxHeight - logoMargin * 2);
+  const logoWidth = r2(Math.max(0, logoBoxWidth - logoMargin * 2));
+  const logoHeight = r2(Math.max(0, logoBoxHeight - logoMargin * 2));
+
+  const applyLogoMask =
+    hasLogo && logoWidth > 0 && logoHeight > 0 && (logo?.hideDots ?? true);
 
   // Finder pattern corner positions (row, col in module space)
   const cornerPositions: Array<[number, number]> = [
@@ -307,7 +308,7 @@ export function buildSVGString(props: QRCodeProps): string {
 
   svg += `</g>`;
 
-  if (hasLogo) {
+  if (hasLogo && logoWidth > 0 && logoHeight > 0) {
     svg += `<image href="${esc(logoSrc!)}" x="${logoX}" y="${logoY}" width="${logoWidth}" height="${logoHeight}"/>`;
   }
 

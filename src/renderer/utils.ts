@@ -1,11 +1,4 @@
-import type { DotStyle, CornerDotStyle, CornerSquareStyle } from '../types';
-
-export interface DotNeighbors {
-  top: boolean;
-  right: boolean;
-  bottom: boolean;
-  left: boolean;
-}
+import type { CornerDotStyle, CornerSquareStyle } from '../types';
 
 export function squarePath(x: number, y: number, s: number): string {
   return `M${x},${y}h${s}v${s}h${-s}z`;
@@ -32,69 +25,6 @@ function roundedRect(
     `v${-(h - 2 * cr)}` +
     `q0,${-cr} ${cr},${-cr}z`
   );
-}
-
-// Draws a rectangle with independent radius for each corner (TL, TR, BR, BL).
-function roundedRectPerCorner(
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  rTL: number,
-  rTR: number,
-  rBR: number,
-  rBL: number,
-): string {
-  return (
-    `M${x + rTL},${y}` +
-    `h${w - rTL - rTR}` +
-    `q${rTR},0 ${rTR},${rTR}` +
-    `v${h - rTR - rBR}` +
-    `q0,${rBR} ${-rBR},${rBR}` +
-    `h${-(w - rBR - rBL)}` +
-    `q${-rBL},0 ${-rBL},${-rBL}` +
-    `v${-(h - rBL - rTL)}` +
-    `q0,${-rTL} ${rTL},${-rTL}z`
-  );
-}
-
-// Returns an SVG path for a single data module at pixel position (x, y) with the given style.
-// neighbors is required when style === 'rounded'.
-export function dotPath(
-  x: number,
-  y: number,
-  s: number,
-  style: DotStyle,
-  neighbors?: DotNeighbors,
-): string {
-  switch (style) {
-    case 'square':
-      return squarePath(x, y, s);
-    case 'circle': {
-      const cx = x + s / 2;
-      const cy = y + s / 2;
-      const r = s / 2;
-      return (
-        `M${cx - r},${cy}` +
-        `a${r},${r} 0 1,0 ${r * 2},0` +
-        `a${r},${r} 0 1,0 ${-r * 2},0z`
-      );
-    }
-    case 'rounded': {
-      const R = s * 0.45;
-      const n = neighbors ?? {
-        top: false,
-        right: false,
-        bottom: false,
-        left: false,
-      };
-      const rTL = n.top || n.left ? 0 : R;
-      const rTR = n.top || n.right ? 0 : R;
-      const rBR = n.bottom || n.right ? 0 : R;
-      const rBL = n.bottom || n.left ? 0 : R;
-      return roundedRectPerCorner(x, y, s, s, rTL, rTR, rBR, rBL);
-    }
-  }
 }
 
 // Returns an SVG path for the 3×3 inner dot of a finder pattern corner.

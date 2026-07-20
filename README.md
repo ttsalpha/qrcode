@@ -204,6 +204,7 @@ link.click();
 - Full Reed-Solomon error correction over GF(256)
 - All 8 mask patterns evaluated with ISO 18004 penalty scoring
 - All function patterns: finder, separator, timing, alignment, dark module, format info, version info
+- Generated matrices are memoized (16-entry LRU) — repeated renders of the same value skip encoding entirely
 
 ## License
 

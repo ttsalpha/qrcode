@@ -8,6 +8,7 @@ export default defineConfig({
   target: 'es2018',
   clean: true,
   sourcemap: true,
+  treeshake: true,
   banner: {
     js: '"use client";',
   },

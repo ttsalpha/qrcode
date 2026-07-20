@@ -1,6 +1,6 @@
 {
   "name": "@ttsalpha/qrcode",
-  "version": "2.3.1",
+  "version": "2.4.0",
   "description": "Lightweight, fully customizable React QR code library rendered as SVG",
   "author": "Son Tran",
   "license": "MIT",
@@ -23,11 +23,13 @@
   "files": [
     "dist"
   ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
     "test:watch": "vitest",
+    "bench": "vitest bench --run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit"

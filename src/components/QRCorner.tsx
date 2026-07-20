@@ -21,7 +21,7 @@ interface QRCornerProps {
 //
 // The outer ring uses fillRule="evenodd" so the inner cutout becomes transparent,
 // revealing the background color instead of overpainting it.
-export function QRCorner({
+export const QRCorner = /* @__PURE__ */ React.memo(function QRCorner({
   x,
   y,
   moduleSize,
@@ -49,4 +49,4 @@ export function QRCorner({
       <path d={dotPathStr} fill={dotColor} />
     </g>
   );
-}
+});

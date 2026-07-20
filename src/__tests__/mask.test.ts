@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { applyMask, calculatePenalty, selectBestMask } from '../core/mask';
+import {
+  applyMask,
+  calculatePenalty,
+  selectBestMask,
+  selectAndApplyBestMask,
+  selectAndApplyBestMaskFlat,
+  type MaskPattern,
+} from '../core/mask';
 
 function makeMatrix(size: number, fill: boolean): boolean[][] {
   return Array.from(
@@ -120,4 +127,99 @@ describe('selectBestMask', () => {
       expect(bestPenalty).toBeLessThanOrEqual(penalty);
     }
   });
+});
+
+// mulberry32 — deterministic PRNG so failures are reproducible
+function seededRandom(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function randomMatrix(size: number, rand: () => number): boolean[][] {
+  return Array.from({ length: size }, () =>
+    Array.from({ length: size }, () => rand() < 0.5),
+  );
+}
+
+function randomFunctionModules(size: number, rand: () => number): boolean[][] {
+  // ~20% function modules, roughly matching real QR layouts
+  return Array.from({ length: size }, () =>
+    Array.from({ length: size }, () => rand() < 0.2),
+  );
+}
+
+describe('selectAndApplyBestMaskFlat (production apply) vs reference', () => {
+  // Covers the flat MASK_TABLE XOR apply loop that production actually runs
+  // (via generateQRMatrix) — the bridge test below applies via the reference
+  // path, so without this a bug in the flat apply would ship undetected.
+  const sizes = [21, 57, 177];
+  const casesPerSize = { 21: 15, 57: 10, 177: 3 } as Record<number, number>;
+
+  for (const size of sizes) {
+    it(`flat apply matches reference apply (size ${size})`, () => {
+      const rand = seededRandom(size * 7919 + 3);
+
+      for (let n = 0; n < casesPerSize[size]; n++) {
+        const matrix = randomMatrix(size, rand);
+        const fn = randomFunctionModules(size, rand);
+
+        // Flatten inputs for the production path
+        const base = new Uint8Array(size * size);
+        const fnFlat = new Uint8Array(size * size);
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) {
+            if (matrix[r][c]) base[r * size + c] = 1;
+            if (fn[r][c]) fnFlat[r * size + c] = 1;
+          }
+        }
+
+        const flatChoice = selectAndApplyBestMaskFlat(base, fnFlat, size);
+        const referenceChoice = selectBestMask(matrix, fn);
+        expect(flatChoice).toBe(referenceChoice);
+
+        // The flat-applied buffer must equal the reference-applied matrix
+        const expected = applyMask(matrix, fn, referenceChoice);
+        for (let r = 0; r < size; r++) {
+          for (let c = 0; c < size; c++) {
+            expect(base[r * size + c] === 1).toBe(expected[r][c]);
+          }
+        }
+      }
+    });
+  }
+});
+
+describe('selectAndApplyBestMask (fast path) vs reference', () => {
+  // The fast path fuses mask application and penalty scoring into two passes.
+  // Verify it picks the exact same mask as the reference brute-force scorer
+  // and applies it correctly, across random matrices of real QR sizes.
+  const sizes = [21, 57, 177]; // v1, v10, v40
+  const casesPerSize = { 21: 25, 57: 20, 177: 5 } as Record<number, number>;
+
+  for (const size of sizes) {
+    it(`matches reference mask choice and application (size ${size})`, () => {
+      const rand = seededRandom(size * 1000 + 7);
+
+      for (let n = 0; n < casesPerSize[size]; n++) {
+        const matrix = randomMatrix(size, rand);
+        const fn = randomFunctionModules(size, rand);
+
+        const referenceChoice = selectBestMask(matrix, fn);
+
+        const applied = matrix.map((row) => row.slice());
+        const fastChoice = selectAndApplyBestMask(applied, fn);
+
+        expect(fastChoice).toBe(referenceChoice);
+
+        const expected = applyMask(matrix, fn, fastChoice as MaskPattern);
+        expect(applied).toEqual(expected);
+      }
+    });
+  }
 });

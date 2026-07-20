@@ -1,6 +1,6 @@
 import type { ErrorCorrectionLevel } from '../types';
 import { encodeQR } from './encode';
-import { selectAndApplyBestMask } from './mask';
+import { selectAndApplyBestMaskFlat } from './mask';
 
 // Alignment pattern center positions per version (ISO 18004 Annex E)
 const ALIGNMENT_PATTERN_TABLE: number[][] = [
@@ -103,28 +103,17 @@ const VERSION_INFO_TABLE: number[] = [
   0x28c69, // V40
 ];
 
-// EC level index for format info table: L=0, M=1, Q=2, H=3
-const EC_LEVEL_FORMAT_INDEX: Record<ErrorCorrectionLevel, number> = {
-  L: 0,
-  M: 1,
-  Q: 2,
-  H: 3,
-};
-
-function createMatrix(size: number): boolean[][] {
-  return Array.from(
-    { length: size },
-    () => new Array(size).fill(false) as boolean[],
-  );
-}
+// The matrix is built on flat Uint8Array buffers (index = row * size + col,
+// values 0/1) and converted to boolean[][] once at the end of generation.
 
 // Places a 7×7 finder pattern with its 1-module white separator.
 // The loop range r,c = -1..7 covers both the finder (0..6) and the separator (-1 and 7)
 // in a single pass. Out-of-bounds cells (top-right and bottom-left separators that fall
 // outside the matrix) are simply skipped.
 function placeFinderPattern(
-  matrix: boolean[][],
-  functionModules: boolean[][],
+  matrix: Uint8Array,
+  functionModules: Uint8Array,
+  size: number,
   row: number,
   col: number,
 ): void {
@@ -132,62 +121,64 @@ function placeFinderPattern(
     for (let c = -1; c <= 7; c++) {
       const mr = row + r;
       const mc = col + c;
-      if (mr < 0 || mc < 0 || mr >= matrix.length || mc >= matrix.length)
-        continue;
-      functionModules[mr][mc] = true;
+      if (mr < 0 || mc < 0 || mr >= size || mc >= size) continue;
+      const i = mr * size + mc;
+      functionModules[i] = 1;
       if (r === -1 || r === 7 || c === -1 || c === 7) {
         // separator (white)
-        matrix[mr][mc] = false;
+        matrix[i] = 0;
       } else if (r === 0 || r === 6 || c === 0 || c === 6) {
         // outer ring (dark)
-        matrix[mr][mc] = true;
+        matrix[i] = 1;
       } else if (r >= 2 && r <= 4 && c >= 2 && c <= 4) {
         // inner 3×3 (dark)
-        matrix[mr][mc] = true;
+        matrix[i] = 1;
       } else {
         // white ring between outer and inner
-        matrix[mr][mc] = false;
+        matrix[i] = 0;
       }
     }
   }
 }
 
 function placeAlignmentPattern(
-  matrix: boolean[][],
-  functionModules: boolean[][],
+  matrix: Uint8Array,
+  functionModules: Uint8Array,
+  size: number,
   row: number,
   col: number,
 ): void {
   for (let r = -2; r <= 2; r++) {
     for (let c = -2; c <= 2; c++) {
-      const mr = row + r;
-      const mc = col + c;
-      functionModules[mr][mc] = true;
+      const i = (row + r) * size + (col + c);
+      functionModules[i] = 1;
       if (r === -2 || r === 2 || c === -2 || c === 2) {
         // outer ring (dark)
-        matrix[mr][mc] = true;
+        matrix[i] = 1;
       } else if (r === 0 && c === 0) {
         // center (dark)
-        matrix[mr][mc] = true;
+        matrix[i] = 1;
       } else {
         // interior (white)
-        matrix[mr][mc] = false;
+        matrix[i] = 0;
       }
     }
   }
 }
 
 function placeTimingPatterns(
-  matrix: boolean[][],
-  functionModules: boolean[][],
+  matrix: Uint8Array,
+  functionModules: Uint8Array,
+  size: number,
 ): void {
-  const size = matrix.length;
   for (let i = 8; i < size - 8; i++) {
-    const val = i % 2 === 0;
-    matrix[6][i] = val;
-    matrix[i][6] = val;
-    functionModules[6][i] = true;
-    functionModules[i][6] = true;
+    const val = i % 2 === 0 ? 1 : 0;
+    const horizontal = 6 * size + i;
+    const vertical = i * size + 6;
+    matrix[horizontal] = val;
+    matrix[vertical] = val;
+    functionModules[horizontal] = 1;
+    functionModules[vertical] = 1;
   }
 }
 
@@ -217,17 +208,17 @@ const FORMAT_INFO_POSITIONS: Array<[number, number]> = [
 // Format info occupies 15 modules in two copies:
 //   Copy 1: 15 cells around the top-left finder (FORMAT_INFO_POSITIONS)
 //   Copy 2: 8 cells top-right + 7 cells bottom-left
-function reserveFormatInfo(functionModules: boolean[][], size: number): void {
+function reserveFormatInfo(functionModules: Uint8Array, size: number): void {
   for (const [r, c] of FORMAT_INFO_POSITIONS) {
-    functionModules[r][c] = true;
+    functionModules[r * size + c] = 1;
   }
   // Top-right copy (row 8, rightmost 8 columns)
   for (let i = 0; i < 8; i++) {
-    functionModules[8][size - 1 - i] = true;
+    functionModules[8 * size + size - 1 - i] = 1;
   }
   // Bottom-left copy (col 8, bottom 7 rows)
   for (let i = 0; i < 7; i++) {
-    functionModules[size - 7 + i][8] = true;
+    functionModules[(size - 7 + i) * size + 8] = 1;
   }
 }
 
@@ -237,23 +228,25 @@ function reserveFormatInfo(functionModules: boolean[][], size: number): void {
 //   - bottom-left: the transpose of the top-right block
 // Both blocks are filled in one loop by indexing bit i as (row=i/3, col=i%3).
 function placeVersionInfo(
-  matrix: boolean[][],
-  functionModules: boolean[][],
+  matrix: Uint8Array,
+  functionModules: Uint8Array,
+  size: number,
   version: number,
 ): void {
   if (version < 7) return;
-  const size = matrix.length;
   const versionBits = VERSION_INFO_TABLE[version - 7];
 
   for (let i = 0; i < 18; i++) {
     const bit = (versionBits >> i) & 1;
     const r = Math.floor(i / 3);
     const c = i % 3;
-    matrix[r][size - 11 + c] = bit === 1;
-    functionModules[r][size - 11 + c] = true;
+    const topRight = r * size + (size - 11 + c);
+    const bottomLeft = (size - 11 + c) * size + r;
+    matrix[topRight] = bit;
+    functionModules[topRight] = 1;
     // Transposed copy for the bottom-left block
-    matrix[size - 11 + c][r] = bit === 1;
-    functionModules[size - 11 + c][r] = true;
+    matrix[bottomLeft] = bit;
+    functionModules[bottomLeft] = 1;
   }
 }
 
@@ -266,11 +259,11 @@ function placeVersionInfo(
 // Function module cells (finders, timing, format, alignment) are skipped silently;
 // any remaining capacity after all codewords is filled with zeros (remainder bits).
 function placeDataBits(
-  matrix: boolean[][],
-  functionModules: boolean[][],
-  codewords: number[],
+  matrix: Uint8Array,
+  functionModules: Uint8Array,
+  size: number,
+  codewords: Uint8Array,
 ): void {
-  const size = matrix.length;
   let bitIndex = 0;
   const totalBits = codewords.length * 8;
 
@@ -289,17 +282,17 @@ function placeDataBits(
     const rowStep = goingUp ? -1 : 1;
 
     for (let row = rowStart; row !== rowEnd; row += rowStep) {
+      const rowOff = row * size;
       for (let dc = 0; dc <= 1; dc++) {
         const c = col - dc;
         if (c < 0) continue;
-        if (functionModules[row][c]) continue;
+        if (functionModules[rowOff + c]) continue;
         if (bitIndex < totalBits) {
-          const byteIdx = Math.floor(bitIndex / 8);
-          const bitPos = 7 - (bitIndex % 8);
-          matrix[row][c] = ((codewords[byteIdx] >> bitPos) & 1) === 1;
+          matrix[rowOff + c] =
+            (codewords[bitIndex >> 3] >> (7 - (bitIndex & 7))) & 1;
           bitIndex++;
         } else {
-          matrix[row][c] = false;
+          matrix[rowOff + c] = 0;
         }
       }
     }
@@ -310,35 +303,68 @@ function placeDataBits(
 }
 
 export interface QRMatrixResult {
-  matrix: boolean[][];
+  // Read-only: cached results are shared across callers — mutating a matrix
+  // would poison every subsequent render of the same value.
+  matrix: ReadonlyArray<readonly boolean[]>;
   version: number;
   size: number;
 }
+
+// Bounded LRU keyed on all generation inputs. Results are treated as
+// immutable by every consumer, so returning a shared reference is safe.
+// Repeated renders of the same value (lists, remounts, StrictMode,
+// toSVGString → toDataURL) skip the full encode + mask-selection pipeline.
+const MATRIX_CACHE_LIMIT = 16;
+const matrixCache = new Map<string, QRMatrixResult>();
 
 export function generateQRMatrix(
   data: string,
   ecLevel: ErrorCorrectionLevel = 'M',
   requestedVersion?: number,
 ): QRMatrixResult {
+  const cacheKey = `${ecLevel}|${requestedVersion ?? 'a'}|${data}`;
+  const cached = matrixCache.get(cacheKey);
+  if (cached) {
+    // Refresh recency: Map iteration order is insertion order
+    matrixCache.delete(cacheKey);
+    matrixCache.set(cacheKey, cached);
+    return cached;
+  }
+
+  const result = computeQRMatrix(data, ecLevel, requestedVersion);
+  matrixCache.set(cacheKey, result);
+  if (matrixCache.size > MATRIX_CACHE_LIMIT) {
+    matrixCache.delete(matrixCache.keys().next().value as string);
+  }
+  return result;
+}
+
+// Uncached generation pipeline. Exported for benchmarks; production code and
+// consumers should go through the cached generateQRMatrix.
+export function computeQRMatrix(
+  data: string,
+  ecLevel: ErrorCorrectionLevel,
+  requestedVersion?: number,
+): QRMatrixResult {
   const encoded = encodeQR(data, ecLevel, requestedVersion);
-  const { codewords, version } = encoded;
+  const { codewords, version, ecLevelIndex } = encoded;
 
   const size = version * 4 + 17;
-  const matrix = createMatrix(size);
-  const functionModules = createMatrix(size);
+  const matrix = new Uint8Array(size * size);
+  const functionModules = new Uint8Array(size * size);
 
   // Place finder patterns (top-left, top-right, bottom-left)
-  placeFinderPattern(matrix, functionModules, 0, 0);
-  placeFinderPattern(matrix, functionModules, 0, size - 7);
-  placeFinderPattern(matrix, functionModules, size - 7, 0);
+  placeFinderPattern(matrix, functionModules, size, 0, 0);
+  placeFinderPattern(matrix, functionModules, size, 0, size - 7);
+  placeFinderPattern(matrix, functionModules, size, size - 7, 0);
 
   // Place timing patterns
-  placeTimingPatterns(matrix, functionModules);
+  placeTimingPatterns(matrix, functionModules, size);
 
   // Dark module
-  const darkRow = 4 * version + 9;
-  matrix[darkRow][8] = true;
-  functionModules[darkRow][8] = true;
+  const darkIdx = (4 * version + 9) * size + 8;
+  matrix[darkIdx] = 1;
+  functionModules[darkIdx] = 1;
 
   // Place alignment patterns
   const alignCenters = ALIGNMENT_PATTERN_TABLE[version - 1];
@@ -352,27 +378,40 @@ export function generateQRMatrix(
       ) {
         continue;
       }
-      placeAlignmentPattern(matrix, functionModules, r, c);
+      placeAlignmentPattern(matrix, functionModules, size, r, c);
     }
   }
 
   // Version information (v7+)
-  placeVersionInfo(matrix, functionModules, version);
+  placeVersionInfo(matrix, functionModules, size, version);
 
   reserveFormatInfo(functionModules, size);
 
   // Place data bits
-  placeDataBits(matrix, functionModules, codewords);
+  placeDataBits(matrix, functionModules, size, codewords);
 
-  // Select best mask and apply it in-place — eliminates two extra array allocations
-  const bestMask = selectAndApplyBestMask(matrix, functionModules);
+  // Select best mask and apply it in-place on the flat buffer
+  const bestMask = selectAndApplyBestMaskFlat(matrix, functionModules, size);
 
-  // Write format information in-place on the already-masked matrix
-  const ecFormatIdx = EC_LEVEL_FORMAT_INDEX[ecLevel];
-  const formatBits = FORMAT_INFO_TABLE[ecFormatIdx * 8 + bestMask];
+  // Write format information in-place on the already-masked matrix.
+  // FORMAT_INFO_TABLE rows are ordered L, M, Q, H — the same order as
+  // EncodeResult.ecLevelIndex.
+  const formatBits = FORMAT_INFO_TABLE[ecLevelIndex * 8 + bestMask];
   writeFormatInfo(matrix, formatBits, size);
 
-  return { matrix, version, size };
+  // Single conversion pass — the boolean[][] shape is part of the renderer
+  // interface and test expectations
+  const result: boolean[][] = new Array(size);
+  for (let r = 0; r < size; r++) {
+    const row = new Array<boolean>(size);
+    const off = r * size;
+    for (let c = 0; c < size; c++) {
+      row[c] = matrix[off + c] === 1;
+    }
+    result[r] = row;
+  }
+
+  return { matrix: result, version, size };
 }
 
 // Writes the 15-bit format information into both copies in the matrix.
@@ -385,23 +424,20 @@ export function generateQRMatrix(
 //
 // The dark module at (size-8, 8) is always forced dark regardless of format bits.
 function writeFormatInfo(
-  matrix: boolean[][],
+  matrix: Uint8Array,
   formatBits: number,
   size: number,
 ): void {
   for (let i = 0; i < 15; i++) {
-    const bit = (formatBits >> (14 - i)) & 1;
     const [r, c] = FORMAT_INFO_POSITIONS[i];
-    matrix[r][c] = bit === 1;
+    matrix[r * size + c] = (formatBits >> (14 - i)) & 1;
   }
   for (let i = 0; i < 8; i++) {
-    const bit = (formatBits >> i) & 1;
-    matrix[8][size - 1 - i] = bit === 1;
+    matrix[8 * size + size - 1 - i] = (formatBits >> i) & 1;
   }
   for (let i = 0; i < 7; i++) {
-    const bit = (formatBits >> (i + 7)) & 1;
-    matrix[size - 7 + i][8] = bit === 1;
+    matrix[(size - 7 + i) * size + 8] = (formatBits >> (i + 7)) & 1;
   }
   // dark module — always forced dark regardless of mask or format bits (ISO 18004 §7.8.2)
-  matrix[size - 8][8] = true;
+  matrix[(size - 8) * size + 8] = 1;
 }

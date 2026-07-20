@@ -1,36 +1,11 @@
 import type { CSSProperties } from 'react';
-import type {
-  QRCodeProps,
-  ErrorCorrectionLevel,
-  DotStyle,
-  CornerDotStyle,
-  CornerSquareStyle,
-} from '../types';
+import type { QRCodeProps, CornerDotStyle, CornerSquareStyle } from '../types';
 import { generateQRMatrix } from '../core/matrix';
 import { cornerSquarePath, cornerDotPath } from './utils';
-import { getFinderPatternModules } from './svg';
+import { buildDataModulesPath, r2 } from './paths';
+import { isSafeSrc, resolveLogoEcl } from './logoSafety';
 
 let _idCounter = 0;
-
-const SAFE_AREAS = { L: 0.0225, M: 0.04, Q: 0.0625, H: 0.09 } as const;
-const MAX_SAFE_AREA = SAFE_AREAS.H;
-const DEFAULT_SIZE_RATIO = 0.4;
-
-function pickECLForArea(area: number): ErrorCorrectionLevel {
-  if (area <= SAFE_AREAS.L) return 'L';
-  if (area <= SAFE_AREAS.M) return 'M';
-  if (area <= SAFE_AREAS.Q) return 'Q';
-  return 'H';
-}
-
-function isSafeSrc(src: string): boolean {
-  const s = src.trim().toLowerCase();
-  if (s.startsWith('javascript:')) return false;
-  if (s.startsWith('data:') && !s.startsWith('data:image/')) return false;
-  return true;
-}
-
-const r2 = (n: number): number => Math.round(n * 100) / 100;
 
 function esc(s: string): string {
   return s
@@ -48,92 +23,6 @@ function cssToString(style: CSSProperties): string {
         `${k.replace(/([A-Z])/g, (c) => `-${c.toLowerCase()}`)}:${v as string}`,
     )
     .join(';');
-}
-
-// 'square' style: merge consecutive dark modules per row into one path command
-function renderSquareRLE(
-  matrix: boolean[][],
-  finderModules: Set<number>,
-  moduleSize: number,
-  marginPx: number,
-): string {
-  const size = matrix.length;
-  const h = r2(moduleSize);
-  const parts: string[] = [];
-
-  for (let row = 0; row < size; row++) {
-    let runStart = -1;
-    for (let col = 0; col <= size; col++) {
-      const isDark =
-        col < size && matrix[row][col] && !finderModules.has(row * size + col);
-      if (isDark && runStart === -1) {
-        runStart = col;
-      } else if (!isDark && runStart !== -1) {
-        const x = r2(marginPx + runStart * moduleSize);
-        const y = r2(marginPx + row * moduleSize);
-        const w = r2((col - runStart) * moduleSize);
-        parts.push(`M${x},${y}h${w}v${h}h${-w}z`);
-        runStart = -1;
-      }
-    }
-  }
-
-  return parts.join(' ');
-}
-
-// 'circle' and 'rounded' styles: one path command per module
-function renderModulesPer(
-  matrix: boolean[][],
-  finderModules: Set<number>,
-  moduleSize: number,
-  marginPx: number,
-  dotStyle: DotStyle,
-): string {
-  const size = matrix.length;
-  const s = r2(moduleSize);
-  const parts: string[] = [];
-
-  for (let row = 0; row < size; row++) {
-    for (let col = 0; col < size; col++) {
-      if (!matrix[row][col] || finderModules.has(row * size + col)) continue;
-
-      const x = r2(marginPx + col * moduleSize);
-      const y = r2(marginPx + row * moduleSize);
-
-      if (dotStyle === 'circle') {
-        const cx = r2(x + s / 2);
-        const cy = r2(y + s / 2);
-        const rad = r2(s / 2);
-        parts.push(
-          `M${r2(cx - rad)},${cy}a${rad},${rad} 0 1,0 ${r2(rad * 2)},0a${rad},${rad} 0 1,0 ${r2(-rad * 2)},0z`,
-        );
-      } else {
-        // rounded: per-corner radius based on neighbors
-        const R = r2(s * 0.45);
-        const top = row > 0 && matrix[row - 1][col];
-        const right = col < size - 1 && matrix[row][col + 1];
-        const bottom = row < size - 1 && matrix[row + 1][col];
-        const left = col > 0 && matrix[row][col - 1];
-        const rTL = top || left ? 0 : R;
-        const rTR = top || right ? 0 : R;
-        const rBR = bottom || right ? 0 : R;
-        const rBL = bottom || left ? 0 : R;
-        parts.push(
-          `M${r2(x + rTL)},${y}` +
-            `h${r2(s - rTL - rTR)}` +
-            `q${rTR},0 ${rTR},${rTR}` +
-            `v${r2(s - rTR - rBR)}` +
-            `q0,${rBR} ${-rBR},${rBR}` +
-            `h${r2(-(s - rBR - rBL))}` +
-            `q${-rBL},0 ${-rBL},${-rBL}` +
-            `v${r2(-(s - rBL - rTL))}` +
-            `q0,${-rTL} ${rTL},${-rTL}z`,
-        );
-      }
-    }
-  }
-
-  return parts.join(' ');
 }
 
 function renderCorner(
@@ -186,25 +75,11 @@ export function buildSVGString(props: QRCodeProps): string {
   const logoSrc = logo?.src && isSafeSrc(logo.src) ? logo.src : undefined;
   const hasLogo = !!logoSrc;
 
-  const sizeRatio = hasLogo
-    ? logo?.size !== undefined
-      ? Math.max(0, Math.min(1, logo.size))
-      : DEFAULT_SIZE_RATIO
-    : 0;
-  const targetArea = sizeRatio * MAX_SAFE_AREA;
-
-  let ecLevel: ErrorCorrectionLevel;
-  let absoluteArea: number;
-  if (userECL) {
-    ecLevel = userECL;
-    absoluteArea = Math.min(targetArea, SAFE_AREAS[userECL]);
-  } else if (targetArea > 0) {
-    ecLevel = pickECLForArea(targetArea);
-    absoluteArea = targetArea;
-  } else {
-    ecLevel = 'M';
-    absoluteArea = 0;
-  }
+  const { ecLevel, absoluteArea } = resolveLogoEcl(
+    hasLogo,
+    logo?.size,
+    userECL,
+  );
 
   const { matrix, size: qrSize } = generateQRMatrix(
     value,
@@ -234,11 +109,7 @@ export function buildSVGString(props: QRCodeProps): string {
   const maskId = `${uid}m`;
 
   // Data modules
-  const finderModules = getFinderPatternModules(qrSize);
-  const dataPath =
-    dotStyle === 'square'
-      ? renderSquareRLE(matrix, finderModules, moduleSize, marginPx)
-      : renderModulesPer(matrix, finderModules, moduleSize, marginPx, dotStyle);
+  const dataPath = buildDataModulesPath(matrix, moduleSize, marginPx, dotStyle);
 
   // Logo dimensions (aspect ratio = 1 for headless; no image loading available)
   const logoMargin = logo?.margin ?? 0;

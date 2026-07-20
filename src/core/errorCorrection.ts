@@ -1,28 +1,39 @@
 // Reed-Solomon error correction for QR codes
 // GF(256) with primitive polynomial 0x11d (x^8 + x^4 + x^3 + x^2 + 1)
 
-const EXP_TABLE: number[] = new Array(512);
-const LOG_TABLE: number[] = new Array(256);
-
-// Build GF(256) log/antilog tables
-(function buildGFTables(): void {
+// Build GF(256) antilog table, doubled so gfMul can skip the mod-255 wrap
+function buildExpTable(): Uint8Array {
+  const exp = new Uint8Array(512);
   let x = 1;
   for (let i = 0; i < 256; i++) {
-    EXP_TABLE[i] = x;
-    LOG_TABLE[x] = i;
+    exp[i] = x;
     x <<= 1;
     if (x & 0x100) {
       x ^= 0x11d;
     }
   }
   for (let i = 256; i < 512; i++) {
-    EXP_TABLE[i] = EXP_TABLE[i - 255];
+    exp[i] = exp[i - 255];
   }
-})();
+  return exp;
+}
+
+function buildLogTable(exp: Uint8Array): Uint8Array {
+  const log = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) {
+    log[exp[i]] = i;
+  }
+  return log;
+}
+
+const EXP_TABLE = /* @__PURE__ */ buildExpTable();
+const LOG_TABLE = /* @__PURE__ */ buildLogTable(EXP_TABLE);
 
 function gfMul(a: number, b: number): number {
   if (a === 0 || b === 0) return 0;
-  return EXP_TABLE[(LOG_TABLE[a] + LOG_TABLE[b]) % 255];
+  // Log values reach 255 (α^255 = 1 overwrites LOG_TABLE[1] during the table
+  // build), so the sum can reach 510 — EXP_TABLE must stay ≥ 511 entries.
+  return EXP_TABLE[LOG_TABLE[a] + LOG_TABLE[b]];
 }
 
 function gfPow(base: number, exp: number): number {
@@ -30,7 +41,7 @@ function gfPow(base: number, exp: number): number {
 }
 
 // Generate RS generator polynomial for `nECC` error correction codewords
-function generatePolynomial(nECC: number): number[] {
+function generatePolynomial(nECC: number): Uint8Array {
   let poly = [1];
   for (let i = 0; i < nECC; i++) {
     const term = [1, gfPow(2, i)];
@@ -42,12 +53,12 @@ function generatePolynomial(nECC: number): number[] {
     }
     poly = newPoly;
   }
-  return poly;
+  return Uint8Array.from(poly);
 }
 
-const polynomialCache = new Map<number, number[]>();
+const polynomialCache = new Map<number, Uint8Array>();
 
-function getCachedPolynomial(nECC: number): number[] {
+function getCachedPolynomial(nECC: number): Uint8Array {
   let poly = polynomialCache.get(nECC);
   if (!poly) {
     poly = generatePolynomial(nECC);
@@ -57,24 +68,27 @@ function getCachedPolynomial(nECC: number): number[] {
 }
 
 // Compute `nECC` Reed-Solomon error correction codewords for `data`
-export function computeECC(data: number[], nECC: number): number[] {
+export function computeECC(data: ArrayLike<number>, nECC: number): Uint8Array {
   const generator = getCachedPolynomial(nECC);
+  const genLen = generator.length;
   // Initialize remainder as data codewords followed by nECC zeros
-  const remainder = new Array(data.length + nECC).fill(0) as number[];
-  for (let i = 0; i < data.length; i++) {
-    remainder[i] = data[i];
-  }
+  const remainder = new Uint8Array(data.length + nECC);
+  remainder.set(data);
 
   for (let i = 0; i < data.length; i++) {
     const coeff = remainder[i];
     if (coeff !== 0) {
-      for (let j = 0; j < generator.length; j++) {
-        remainder[i + j] ^= gfMul(generator[j], coeff);
+      const logCoeff = LOG_TABLE[coeff];
+      for (let j = 0; j < genLen; j++) {
+        const g = generator[j];
+        if (g !== 0) {
+          remainder[i + j] ^= EXP_TABLE[LOG_TABLE[g] + logCoeff];
+        }
       }
     }
   }
 
-  return remainder.slice(data.length, data.length + nECC);
+  return remainder.slice(data.length);
 }
 
 // EC block structure per ISO 18004 Table 9
@@ -1149,42 +1163,55 @@ export function getDataCodewordsCapacity(
 
 // Interleave data codewords from multiple blocks and append ECC
 export function interleaveBlocks(
-  dataCodewords: number[],
+  dataCodewords: ArrayLike<number>,
   version: number,
   ecLevel: number,
-): number[] {
+): Uint8Array {
   const spec = EC_BLOCKS_TABLE[version - 1][ecLevel];
-  const blocks: number[][] = [];
-  const eccBlocks: number[][] = [];
+  const data =
+    dataCodewords instanceof Uint8Array
+      ? dataCodewords
+      : Uint8Array.from(dataCodewords);
+
+  // Block boundaries as offsets into `data` — no per-block copies
+  const blockOffsets: number[] = [];
+  const blockLengths: number[] = [];
+  const eccBlocks: Uint8Array[] = [];
 
   let offset = 0;
+  let maxDataLen = 0;
   for (const group of spec.groups) {
     for (let b = 0; b < group.numBlocks; b++) {
-      const block = dataCodewords.slice(offset, offset + group.dataCW);
-      blocks.push(block);
-      eccBlocks.push(computeECC(block, spec.ecPerBlock));
+      blockOffsets.push(offset);
+      blockLengths.push(group.dataCW);
+      if (group.dataCW > maxDataLen) maxDataLen = group.dataCW;
+      eccBlocks.push(
+        computeECC(
+          data.subarray(offset, offset + group.dataCW),
+          spec.ecPerBlock,
+        ),
+      );
       offset += group.dataCW;
     }
   }
 
+  const numBlocks = blockOffsets.length;
+  const result = new Uint8Array(data.length + numBlocks * spec.ecPerBlock);
+  let pos = 0;
+
   // Interleave data codewords
-  const result: number[] = [];
-  const maxDataLen = Math.max(...blocks.map((b) => b.length));
   for (let i = 0; i < maxDataLen; i++) {
-    for (const block of blocks) {
-      if (i < block.length) {
-        result.push(block[i]);
+    for (let b = 0; b < numBlocks; b++) {
+      if (i < blockLengths[b]) {
+        result[pos++] = data[blockOffsets[b] + i];
       }
     }
   }
 
   // Interleave ECC codewords
-  const maxECCLen = spec.ecPerBlock;
-  for (let i = 0; i < maxECCLen; i++) {
-    for (const ecc of eccBlocks) {
-      if (i < ecc.length) {
-        result.push(ecc[i]);
-      }
+  for (let i = 0; i < spec.ecPerBlock; i++) {
+    for (let b = 0; b < numBlocks; b++) {
+      result[pos++] = eccBlocks[b][i];
     }
   }
 

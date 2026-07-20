@@ -3,43 +3,22 @@
 declare const process: { env: { NODE_ENV: string } };
 
 import * as React from 'react';
-import type {
-  QRCodeProps,
-  CornerDotStyle,
-  CornerSquareStyle,
-  ErrorCorrectionLevel,
-} from '../types';
+import type { QRCodeProps, CornerDotStyle, CornerSquareStyle } from '../types';
 import { generateQRMatrix } from '../core/matrix';
-import { renderDataModules, getFinderPatterns } from '../renderer/svg';
+import { getFinderPatterns } from '../renderer/svg';
+import { buildDataModulesPath } from '../renderer/paths';
+import {
+  pickECLForArea,
+  isSafeSrc,
+  resolveLogoEcl,
+} from '../renderer/logoSafety';
 import { QRCorner } from './QRCorner';
-
-// Block javascript: and non-image data: URLs; allow everything else
-// (https, http, relative paths, blob:, data:image/…).
-function isSafeSrc(src: string): boolean {
-  const s = src.trim().toLowerCase();
-  if (s.startsWith('javascript:')) return false;
-  if (s.startsWith('data:') && !s.startsWith('data:image/')) return false;
-  return true;
-}
-
-// Max logo area as fraction of svgSize² per ECL. sqrt(value) = linear logo/svgSize.
-// Empirical safe linear limits: L≤15%, M≤20%, Q≤25%, H≤30%.
-const SAFE_AREAS = { L: 0.0225, M: 0.04, Q: 0.0625, H: 0.09 } as const;
-const MAX_SAFE_AREA = SAFE_AREAS.H;
-const DEFAULT_SIZE_RATIO = 0.4;
-
-function pickECLForArea(area: number): ErrorCorrectionLevel {
-  if (area <= SAFE_AREAS.L) return 'L';
-  if (area <= SAFE_AREAS.M) return 'M';
-  if (area <= SAFE_AREAS.Q) return 'Q';
-  return 'H';
-}
 
 // Avoid useLayoutEffect SSR warning while still running synchronously on the client
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
 
-export const QRCode = React.memo(function QRCode({
+export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
   value,
   size = 256,
   margin = 4,
@@ -58,34 +37,15 @@ export const QRCode = React.memo(function QRCode({
   const userSize = logo?.size;
   const hasLogoSrc = !!(logo?.element || (logo?.src && isSafeSrc(logo.src)));
 
-  // Normalize user size [0, 1] → absolute area (fraction of svgSize²).
-  const sizeRatio = hasLogoSrc
-    ? userSize !== undefined
-      ? Math.max(0, Math.min(1, userSize))
-      : DEFAULT_SIZE_RATIO
-    : 0;
-  const targetArea = sizeRatio * MAX_SAFE_AREA;
-
-  // Resolve effective ECL + area: respect explicit ECL, otherwise auto-pick.
-  let ecLevel: ErrorCorrectionLevel;
-  let absoluteArea: number;
-  if (userECL) {
-    ecLevel = userECL;
-    absoluteArea = Math.min(targetArea, SAFE_AREAS[userECL]);
-    if (
-      process.env.NODE_ENV !== 'production' &&
-      targetArea > SAFE_AREAS[userECL]
-    ) {
-      console.warn(
-        `[QRCode] logo.size=${userSize} needs ECL ≥ "${pickECLForArea(targetArea)}"; ECL "${userECL}" set, logo clamped.`,
-      );
-    }
-  } else if (targetArea > 0) {
-    ecLevel = pickECLForArea(targetArea);
-    absoluteArea = targetArea;
-  } else {
-    ecLevel = 'M';
-    absoluteArea = 0;
+  const { ecLevel, absoluteArea, targetArea, clamped } = resolveLogoEcl(
+    hasLogoSrc,
+    userSize,
+    userECL,
+  );
+  if (process.env.NODE_ENV !== 'production' && clamped) {
+    console.warn(
+      `[QRCode] logo.size=${userSize} needs ECL ≥ "${pickECLForArea(targetArea)}"; ECL "${userECL}" set, logo clamped.`,
+    );
   }
 
   const [srcAspectRatio, setSrcAspectRatio] = React.useState(1);
@@ -159,8 +119,8 @@ export const QRCode = React.memo(function QRCode({
     corner?.dot?.style ?? defaultCornerDotStyle;
   const cornerDotColor = corner?.dot?.color ?? dotColor;
 
-  const paths = React.useMemo(
-    () => renderDataModules(matrix, moduleSize, marginPx, dotStyle),
+  const dataPath = React.useMemo(
+    () => buildDataModulesPath(matrix, moduleSize, marginPx, dotStyle),
     [matrix, moduleSize, marginPx, dotStyle],
   );
   const finderPatterns = React.useMemo(
@@ -238,7 +198,7 @@ export const QRCode = React.memo(function QRCode({
 
         <g mask={applyLogoMask ? `url(#${maskId})` : undefined}>
           {/* Data modules */}
-          {paths.length > 0 && <path d={paths.join(' ')} fill={dotColor} />}
+          {dataPath && <path d={dataPath} fill={dotColor} />}
 
           {/* Finder patterns (corners) */}
           {finderPatterns.map((fp, idx) => (

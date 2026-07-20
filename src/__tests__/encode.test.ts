@@ -52,6 +52,63 @@ describe('encodeQR', () => {
     // v1-M holds at most 16 data codewords; a very long string won't fit
     expect(() => encodeQR('A'.repeat(200), 'M', 1)).toThrow(RangeError);
   });
+
+  it('throws when data exceeds v40 capacity', () => {
+    expect(() => encodeQR('A'.repeat(10000), 'H')).toThrow(RangeError);
+  });
+
+  // Expected versions captured from the brute-force selection loop before it
+  // was replaced with arithmetic bit counting — pins identical behavior at
+  // capacity edges and version-group boundaries (char count width changes).
+  it('auto-selects versions at capacity boundaries (alphanumeric)', () => {
+    expect(encodeQR('A'.repeat(20), 'M').version).toBe(1);
+    expect(encodeQR('A'.repeat(21), 'M').version).toBe(2);
+    expect(encodeQR('A'.repeat(46), 'L').version).toBe(2);
+    expect(encodeQR('A'.repeat(47), 'L').version).toBe(3);
+    expect(encodeQR('A'.repeat(20), 'H').version).toBe(2);
+    expect(encodeQR('A'.repeat(21), 'H').version).toBe(3);
+  });
+
+  it('auto-selects versions at capacity boundaries (numeric)', () => {
+    expect(encodeQR('1'.repeat(33), 'M').version).toBe(1);
+    expect(encodeQR('1'.repeat(34), 'M').version).toBe(2);
+    expect(encodeQR('1'.repeat(33), 'H').version).toBe(2);
+    expect(encodeQR('1'.repeat(34), 'H').version).toBe(3);
+  });
+
+  it('auto-selects versions at capacity boundaries (byte)', () => {
+    expect(encodeQR('a'.repeat(14), 'M').version).toBe(1);
+    expect(encodeQR('a'.repeat(15), 'M').version).toBe(2);
+    expect(encodeQR('a'.repeat(26), 'H').version).toBe(4);
+    expect(encodeQR('a'.repeat(27), 'H').version).toBe(4);
+  });
+
+  it('auto-selects versions across the v9/v10 group boundary', () => {
+    // Character count indicator widens at v10 — boundary must stay exact
+    expect(encodeQR('A'.repeat(177), 'M').version).toBe(7);
+    expect(encodeQR('A'.repeat(178), 'M').version).toBe(8);
+    expect(encodeQR('A'.repeat(174), 'H').version).toBe(10);
+    expect(encodeQR('A'.repeat(175), 'H').version).toBe(11);
+  });
+
+  it('auto-selects versions for large payloads', () => {
+    expect(encodeQR('A'.repeat(300), 'M').version).toBe(10);
+    expect(encodeQR('A'.repeat(1000), 'M').version).toBe(21);
+    expect(encodeQR('1'.repeat(2000), 'M').version).toBe(23);
+    expect(encodeQR('a'.repeat(500), 'M').version).toBe(17);
+  });
+
+  it('uses UTF-8 byte length (not string length) for byte mode capacity', () => {
+    // The euro sign is 3 UTF-8 bytes; 5 chars → 15 bytes > v1-M's 14-byte limit
+    const result = encodeQR('€'.repeat(5), 'M');
+    expect(result.mode).toBe('byte');
+    expect(result.version).toBe(2);
+  });
+
+  it('rejects non-integer requested versions with RangeError', () => {
+    expect(() => encodeQR('HI', 'M', NaN)).toThrow(RangeError);
+    expect(() => encodeQR('HI', 'M', 5.5)).toThrow(RangeError);
+  });
 });
 
 describe('generateQRMatrix', () => {

@@ -88,3 +88,32 @@ describe('generateQRMatrix - dimensions', () => {
     }
   });
 });
+
+describe('generateQRMatrix - cache', () => {
+  it('returns the same reference on repeated identical calls', () => {
+    const a = generateQRMatrix('CACHE-HIT-TEST', 'M');
+    const b = generateQRMatrix('CACHE-HIT-TEST', 'M');
+    expect(b).toBe(a);
+  });
+
+  it('distinguishes ecLevel and requestedVersion in the key', () => {
+    const base = generateQRMatrix('CACHE-KEY-TEST', 'M');
+    const otherEC = generateQRMatrix('CACHE-KEY-TEST', 'H');
+    const forcedVersion = generateQRMatrix('CACHE-KEY-TEST', 'M', 5);
+    expect(otherEC).not.toBe(base);
+    expect(forcedVersion).not.toBe(base);
+    expect(forcedVersion.version).toBe(5);
+  });
+
+  it('evicts least recently used entries beyond capacity', () => {
+    const first = generateQRMatrix('CACHE-EVICT-0', 'M');
+    // Push more than 16 distinct entries to force eviction of the first
+    for (let i = 1; i <= 20; i++) {
+      generateQRMatrix(`CACHE-EVICT-${i}`, 'M');
+    }
+    const recomputed = generateQRMatrix('CACHE-EVICT-0', 'M');
+    expect(recomputed).not.toBe(first);
+    // Content is still identical
+    expect(recomputed.matrix).toEqual(first.matrix);
+  });
+});

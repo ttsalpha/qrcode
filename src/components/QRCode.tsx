@@ -120,8 +120,8 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
   const cornerDotColor = corner?.dot?.color ?? dotColor;
 
   const dataPath = React.useMemo(
-    () => buildDataModulesPath(matrix, moduleSize, marginPx, dotStyle),
-    [matrix, moduleSize, marginPx, dotStyle],
+    () => buildDataModulesPath(matrix, qrSize, moduleSize, marginPx, dotStyle),
+    [matrix, qrSize, moduleSize, marginPx, dotStyle],
   );
   const finderPatterns = React.useMemo(
     () => getFinderPatterns(qrSize, moduleSize, marginPx),

@@ -15,21 +15,22 @@ function getTextEncoder(): TextEncoder {
   return (textEncoder ??= new TextEncoder());
 }
 
-// 45-character set defined in ISO 18004 Table 5.
-// The map value (index position) is the numeric value used during encoding.
-function buildAlphanumericMap(): Map<string, number> {
+// 45-character set defined in ISO 18004 Table 5. Indexed by ASCII char code so
+// encoding never allocates single-char strings or hits a Map. The stored value
+// (the char's position in the set) is the numeric value used during encoding;
+// -1 marks a code outside the set.
+function buildAlphanumericLookup(): Int8Array {
   const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
-  const map = new Map<string, number>();
-  for (let i = 0; i < chars.length; i++) {
-    map.set(chars[i], i);
-  }
-  return map;
+  const lut = new Int8Array(128).fill(-1);
+  for (let i = 0; i < chars.length; i++) lut[chars.charCodeAt(i)] = i;
+  return lut;
 }
 
-const ALPHANUMERIC_MAP = /* @__PURE__ */ buildAlphanumericMap();
+const ALPHANUMERIC_LUT = /* @__PURE__ */ buildAlphanumericLookup();
 
-function getAlphanumericValue(ch: string): number {
-  return ALPHANUMERIC_MAP.get(ch) ?? -1;
+// Alphanumeric value for an ASCII char code, or -1 if unsupported.
+function alnumValue(code: number): number {
+  return code < 128 ? ALPHANUMERIC_LUT[code] : -1;
 }
 
 function isNumeric(str: string): boolean {
@@ -38,7 +39,7 @@ function isNumeric(str: string): boolean {
 
 function isAlphanumeric(str: string): boolean {
   for (let i = 0; i < str.length; i++) {
-    if (!ALPHANUMERIC_MAP.has(str[i])) return false;
+    if (alnumValue(str.charCodeAt(i)) < 0) return false;
   }
   return true;
 }
@@ -170,14 +171,15 @@ function encodeIntoCodewords(
     }
   } else if (mode === 'alphanumeric') {
     // Pair of chars → first*45 + second, 11 bits; single char → 6 bits (§7.4.4)
-    for (let i = 0; i < data.length; i += 2) {
-      if (i + 1 < data.length) {
+    const len = data.length;
+    for (let i = 0; i < len; i += 2) {
+      if (i + 1 < len) {
         const val =
-          getAlphanumericValue(data[i]) * 45 +
-          getAlphanumericValue(data[i + 1]);
+          ALPHANUMERIC_LUT[data.charCodeAt(i)] * 45 +
+          ALPHANUMERIC_LUT[data.charCodeAt(i + 1)];
         writer.writeBits(val, 11);
       } else {
-        writer.writeBits(getAlphanumericValue(data[i]), 6);
+        writer.writeBits(ALPHANUMERIC_LUT[data.charCodeAt(i)], 6);
       }
     }
   } else {

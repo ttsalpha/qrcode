@@ -35,3 +35,7 @@ coverage/
 .local
 *.local.*
 .history
+
+# Local-only golden SVG regression guard
+src/__tests__/golden.test.ts
+src/__tests__/__snapshots__/

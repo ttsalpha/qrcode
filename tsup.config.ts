@@ -5,7 +5,8 @@ export default defineConfig({
   format: ['esm', 'cjs'],
   dts: true,
   external: ['react', 'react-dom'],
-  target: 'es2018',
+  target: 'es2020',
+  minify: true,
   clean: true,
   sourcemap: true,
   banner: {

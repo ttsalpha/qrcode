@@ -1,23 +1,45 @@
 import { describe, it, expect } from 'vitest';
-import { getFinderPatterns, getFinderPatternModules } from '../renderer/svg';
+import { getFinderPatterns } from '../renderer/svg';
 import { buildDataModulesPath } from '../renderer/paths';
 import { generateQRMatrix } from '../core/matrix';
 
-// 21×21 all-light grid with specific dark modules set — placed in the center
-// so they sit outside the excluded finder regions.
-function matrixWith(cells: Array<[number, number]>): boolean[][] {
-  const m = Array.from(
-    { length: 21 },
-    () => new Array(21).fill(false) as boolean[],
-  );
-  for (const [r, c] of cells) m[r][c] = true;
+// Reference enumeration of the finder-pattern modules (7×7 finder + 1-module
+// separator, packed as row*size+col). Production rendering uses the equivalent
+// bounds check in paths.ts; this Set is kept in the test as the ground truth
+// that the bounds check is compared against.
+function getFinderPatternModules(size: number): Set<number> {
+  const modules = new Set<number>();
+  const corners: Array<[number, number]> = [
+    [0, 0],
+    [0, size - 7],
+    [size - 7, 0],
+  ];
+  for (const [startRow, startCol] of corners) {
+    for (let r = -1; r <= 7; r++) {
+      for (let c = -1; c <= 7; c++) {
+        const mr = startRow + r;
+        const mc = startCol + c;
+        if (mr >= 0 && mc >= 0 && mr < size && mc < size) {
+          modules.add(mr * size + mc);
+        }
+      }
+    }
+  }
+  return modules;
+}
+
+// 21×21 all-light flat grid with specific dark modules set — placed in the
+// center so they sit outside the excluded finder regions.
+function matrixWith(cells: Array<[number, number]>): Uint8Array {
+  const m = new Uint8Array(21 * 21);
+  for (const [r, c] of cells) m[r * 21 + c] = 1;
   return m;
 }
 
 describe('buildDataModulesPath', () => {
   it('returns a non-empty path starting with M (moveto)', () => {
-    const { matrix } = generateQRMatrix('HELLO WORLD', 'M');
-    const path = buildDataModulesPath(matrix, 10, 40, 'square');
+    const { matrix, size } = generateQRMatrix('HELLO WORLD', 'M');
+    const path = buildDataModulesPath(matrix, size, 10, 40, 'square');
 
     expect(path.length).toBeGreaterThan(0);
     expect(path).toMatch(/^M/);
@@ -26,14 +48,11 @@ describe('buildDataModulesPath', () => {
   it('excludes finder pattern modules (circle style is 1:1 per module)', () => {
     const { matrix, size } = generateQRMatrix('TEST', 'M');
     const finderModules = getFinderPatternModules(size);
-    const path = buildDataModulesPath(matrix, 10, 0, 'circle');
+    const path = buildDataModulesPath(matrix, size, 10, 0, 'circle');
 
     // circle emits exactly one M command per rendered module
     const renderedModules = (path.match(/M/g) ?? []).length;
-    const totalDark = matrix.reduce(
-      (sum, row) => sum + row.filter(Boolean).length,
-      0,
-    );
+    const totalDark = matrix.reduce((sum, v) => sum + v, 0);
     expect(renderedModules).toBeGreaterThan(0);
     expect(renderedModules).toBeLessThan(totalDark);
     // sanity: finder modules count matches expectation
@@ -42,13 +61,14 @@ describe('buildDataModulesPath', () => {
 
   it('square style merges horizontal runs (RLE)', () => {
     const { matrix, size } = generateQRMatrix('TEST', 'M');
-    const path = buildDataModulesPath(matrix, 10, 0, 'square');
+    const path = buildDataModulesPath(matrix, size, 10, 0, 'square');
     const finderModules = getFinderPatternModules(size);
 
     let darkDataModules = 0;
     for (let r = 0; r < size; r++) {
       for (let c = 0; c < size; c++) {
-        if (matrix[r][c] && !finderModules.has(r * size + c)) darkDataModules++;
+        if (matrix[r * size + c] === 1 && !finderModules.has(r * size + c))
+          darkDataModules++;
       }
     }
     // merged runs → strictly fewer path commands than modules
@@ -58,15 +78,15 @@ describe('buildDataModulesPath', () => {
   });
 
   it('circle style produces arc path commands', () => {
-    const { matrix } = generateQRMatrix('TEST', 'M');
-    const path = buildDataModulesPath(matrix, 10, 0, 'circle');
+    const { matrix, size } = generateQRMatrix('TEST', 'M');
+    const path = buildDataModulesPath(matrix, size, 10, 0, 'circle');
 
     expect(path).toMatch(/a/);
   });
 
   it('rounded style produces quadratic bezier commands', () => {
-    const { matrix } = generateQRMatrix('TEST', 'M');
-    const path = buildDataModulesPath(matrix, 10, 0, 'rounded');
+    const { matrix, size } = generateQRMatrix('TEST', 'M');
+    const path = buildDataModulesPath(matrix, size, 10, 0, 'rounded');
 
     expect(path).toMatch(/^M/);
     expect(path).toMatch(/q/);
@@ -76,20 +96,23 @@ describe('buildDataModulesPath', () => {
     // Production uses a bounds check; getFinderPatternModules is the
     // reference Set. An all-dark matrix must render exactly the complement.
     for (const size of [21, 25, 177]) {
-      const allDark = Array.from(
-        { length: size },
-        () => new Array(size).fill(true) as boolean[],
-      );
-      const path = buildDataModulesPath(allDark, 10, 0, 'circle');
+      const allDark = new Uint8Array(size * size).fill(1);
+      const path = buildDataModulesPath(allDark, size, 10, 0, 'circle');
       const rendered = (path.match(/M/g) ?? []).length;
       expect(rendered).toBe(size * size - getFinderPatternModules(size).size);
     }
   });
 
   it('rounds coordinates to at most 2 decimals', () => {
-    const { matrix } = generateQRMatrix('HELLO WORLD', 'M');
+    const { matrix, size } = generateQRMatrix('HELLO WORLD', 'M');
     // module size with a long decimal expansion
-    const path = buildDataModulesPath(matrix, 256 / 29, 256 / 29, 'square');
+    const path = buildDataModulesPath(
+      matrix,
+      size,
+      256 / 29,
+      256 / 29,
+      'square',
+    );
 
     for (const num of path.match(/-?\d+\.\d+/g) ?? []) {
       const decimals = num.split('.')[1];
@@ -98,7 +121,13 @@ describe('buildDataModulesPath', () => {
   });
 
   it('rounded style isolated module has 4 rounded corners', () => {
-    const path = buildDataModulesPath(matrixWith([[10, 12]]), 10, 0, 'rounded');
+    const path = buildDataModulesPath(
+      matrixWith([[10, 12]]),
+      21,
+      10,
+      0,
+      'rounded',
+    );
     // 4 q commands, none with zero radius
     expect(path.match(/q/g)).toHaveLength(4);
     expect(path).not.toMatch(/q0,0 0,0/);
@@ -111,6 +140,7 @@ describe('buildDataModulesPath', () => {
         [10, 12],
         [10, 13],
       ]),
+      21,
       10,
       0,
       'rounded',
@@ -132,6 +162,7 @@ describe('buildDataModulesPath', () => {
         [10, 13],
         [11, 12],
       ]),
+      21,
       10,
       0,
       'rounded',

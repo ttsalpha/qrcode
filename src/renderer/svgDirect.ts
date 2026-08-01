@@ -109,7 +109,13 @@ export function buildSVGString(props: QRCodeProps): string {
   const maskId = `${uid}m`;
 
   // Data modules
-  const dataPath = buildDataModulesPath(matrix, moduleSize, marginPx, dotStyle);
+  const dataPath = buildDataModulesPath(
+    matrix,
+    qrSize,
+    moduleSize,
+    marginPx,
+    dotStyle,
+  );
 
   // Logo dimensions (aspect ratio = 1 for headless; no image loading available)
   const logoMargin = logo?.margin ?? 0;

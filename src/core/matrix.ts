@@ -103,8 +103,8 @@ const VERSION_INFO_TABLE: number[] = [
   0x28c69, // V40
 ];
 
-// The matrix is built on flat Uint8Array buffers (index = row * size + col,
-// values 0/1) and converted to boolean[][] once at the end of generation.
+// The matrix is built on a flat Uint8Array buffer (index = row * size + col,
+// values 0/1) and returned as-is — that flat grid is what the renderer reads.
 
 // Places a 7×7 finder pattern with its 1-module white separator.
 // The loop range r,c = -1..7 covers both the finder (0..6) and the separator (-1 and 7)
@@ -303,9 +303,10 @@ function placeDataBits(
 }
 
 export interface QRMatrixResult {
-  // Read-only: cached results are shared across callers — mutating a matrix
-  // would poison every subsequent render of the same value.
-  matrix: ReadonlyArray<readonly boolean[]>;
+  // Flat, row-major grid (1 = dark) of length size*size. Read-only: cached
+  // results are shared across callers — mutating a matrix would poison every
+  // subsequent render of the same value.
+  matrix: Uint8Array;
   version: number;
   size: number;
 }
@@ -399,19 +400,9 @@ export function computeQRMatrix(
   const formatBits = FORMAT_INFO_TABLE[ecLevelIndex * 8 + bestMask];
   writeFormatInfo(matrix, formatBits, size);
 
-  // Single conversion pass — the boolean[][] shape is part of the renderer
-  // interface and test expectations
-  const result: boolean[][] = new Array(size);
-  for (let r = 0; r < size; r++) {
-    const row = new Array<boolean>(size);
-    const off = r * size;
-    for (let c = 0; c < size; c++) {
-      row[c] = matrix[off + c] === 1;
-    }
-    result[r] = row;
-  }
-
-  return { matrix: result, version, size };
+  // `matrix` is already the final masked + formatted grid — return it directly.
+  // Read-only for consumers: the cache shares this exact buffer.
+  return { matrix, version, size };
 }
 
 // Writes the 15-bit format information into both copies in the matrix.

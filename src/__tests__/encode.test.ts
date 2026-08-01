@@ -115,8 +115,8 @@ describe('generateQRMatrix', () => {
   it('produces correct size matrix for v1', () => {
     const { matrix, size } = generateQRMatrix('HELLO WORLD', 'M');
     expect(size).toBe(21);
-    expect(matrix).toHaveLength(21);
-    expect(matrix[0]).toHaveLength(21);
+    // Flat, row-major grid of size*size cells
+    expect(matrix).toHaveLength(21 * 21);
   });
 
   it('produces correct size for v2', () => {
@@ -135,20 +135,20 @@ describe('generateQRMatrix', () => {
   });
 
   it('finder pattern top-left corner is dark', () => {
-    const { matrix } = generateQRMatrix('HELLO WORLD', 'M');
-    // Top-left finder: modules [0][0], [0][6], [6][0], [6][6] are dark
-    expect(matrix[0][0]).toBe(true);
-    expect(matrix[0][6]).toBe(true);
-    expect(matrix[6][0]).toBe(true);
-    expect(matrix[6][6]).toBe(true);
+    const { matrix, size } = generateQRMatrix('HELLO WORLD', 'M');
+    // Top-left finder: modules (0,0), (0,6), (6,0), (6,6) are dark
+    expect(matrix[0 * size + 0]).toBe(1);
+    expect(matrix[0 * size + 6]).toBe(1);
+    expect(matrix[6 * size + 0]).toBe(1);
+    expect(matrix[6 * size + 6]).toBe(1);
   });
 
-  it('returns boolean matrix', () => {
+  it('returns a flat 0/1 grid', () => {
     const { matrix, size } = generateQRMatrix('TEST', 'M');
-    for (let r = 0; r < size; r++) {
-      for (let c = 0; c < size; c++) {
-        expect(typeof matrix[r][c]).toBe('boolean');
-      }
+    expect(matrix).toBeInstanceOf(Uint8Array);
+    expect(matrix).toHaveLength(size * size);
+    for (let i = 0; i < matrix.length; i++) {
+      expect(matrix[i] === 0 || matrix[i] === 1).toBe(true);
     }
   });
 });

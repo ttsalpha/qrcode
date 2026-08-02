@@ -264,84 +264,102 @@ const N3_WINDOW1 = 0b10111010000;
 const N3_WINDOW2 = 0b00001011101;
 const N3_WINDOW_MASK = 0x7ff;
 
-// Applies mask tile `tileBase` into `scratch` and returns the full ISO 18004
-// penalty. Row-major pass: mask application, N1 horizontal, N3 horizontal
-// (rolling window), N2 (2×2, anchored on the previous row), N4 dark count.
-// Column-major pass over `scratch`: N1 + N3 vertical.
+// Per-mask scratch (O(size)): column running state + one row of history,
+// reused across all eight masks in place of the former size² scratch buffer.
+interface MaskScratch {
+  prevRow: Uint8Array; // previous row's masked values (for the N2 2×2 test)
+  colRunVal: Int8Array; // current vertical-run color per column (-1 = none yet)
+  colRunLen: Uint16Array; // current vertical-run length per column
+  colWin: Uint16Array; // rolling 11-bit vertical window per column (N3)
+}
+
+// Full ISO 18004 penalty for one mask in a single row-major pass. Vertical
+// N1/N3 use per-column running state (no cache-hostile column pass); N2 needs
+// only the previous row. The mask is never materialised — values are scored
+// inline as they are computed.
 function applyAndScore(
-  scratch: Uint8Array,
   base: Uint8Array,
   fn: Uint8Array,
   size: number,
   tileBase: number,
+  s: MaskScratch,
 ): number {
+  const { prevRow, colRunVal, colRunLen, colWin } = s;
+  colRunVal.fill(-1);
+  colRunLen.fill(0);
+  colWin.fill(0);
+
   let penalty = 0;
   let darkCount = 0;
 
   for (let r = 0; r < size; r++) {
     const tileRow = tileBase + (r % 12) * 6;
     const rowOff = r * size;
-    const prevRowOff = rowOff - size;
+    const scoreVertical = r >= 10;
     let cMod6 = 0;
-    let runVal = -1;
-    let runLen = 0;
-    let win = 0;
+    let hRunVal = -1;
+    let hRunLen = 0;
+    let hWin = 0;
+    let leftVal = -1;
+    let upLeft = -1; // prevRow[c - 1] from the previous row (unused at c = 0)
 
     for (let c = 0; c < size; c++) {
       const i = rowOff + c;
-      const v = fn[i] ? base[i] : base[i] ^ MASK_TABLE[tileRow + cMod6];
-      scratch[i] = v;
+      // Branchless mask apply: `fn[i] ^ 1` gates the tile bit, so function
+      // modules keep base[i] with no per-cell branch in this ~8·size² loop.
+      const v = base[i] ^ (MASK_TABLE[tileRow + cMod6] & (fn[i] ^ 1));
       darkCount += v;
 
       // N1 horizontal: runs of 5+ same-color modules score 3 + (len - 5)
-      if (v === runVal) {
-        runLen++;
+      if (v === hRunVal) {
+        hRunLen++;
       } else {
-        if (runLen >= 5) penalty += runLen - 2;
-        runVal = v;
-        runLen = 1;
+        if (hRunLen >= 5) penalty += hRunLen - 2;
+        hRunVal = v;
+        hRunLen = 1;
       }
 
-      // N3 horizontal
-      win = ((win << 1) | v) & N3_WINDOW_MASK;
-      if (c >= 10 && (win === N3_WINDOW1 || win === N3_WINDOW2)) {
+      // N3 horizontal (rolling 11-bit window)
+      hWin = ((hWin << 1) | v) & N3_WINDOW_MASK;
+      if (c >= 10 && (hWin === N3_WINDOW1 || hWin === N3_WINDOW2)) {
+        penalty += 40;
+      }
+
+      // N1 vertical (per-column running state)
+      if (v === colRunVal[c]) {
+        colRunLen[c]++;
+      } else {
+        if (colRunLen[c] >= 5) penalty += colRunLen[c] - 2;
+        colRunVal[c] = v;
+        colRunLen[c] = 1;
+      }
+
+      // N3 vertical (per-column rolling window)
+      const cw = ((colWin[c] << 1) | v) & N3_WINDOW_MASK;
+      colWin[c] = cw;
+      if (scoreVertical && (cw === N3_WINDOW1 || cw === N3_WINDOW2)) {
         penalty += 40;
       }
 
       // N2: 2×2 same-color block whose bottom-right corner is (r, c)
-      if (r > 0 && c > 0 && v === scratch[i - 1]) {
-        const above = scratch[prevRowOff + c];
-        if (v === above && v === scratch[prevRowOff + c - 1]) {
-          penalty += 3;
-        }
+      const up = prevRow[c];
+      if (r > 0 && c > 0 && v === leftVal && v === up && v === upLeft) {
+        penalty += 3;
       }
+
+      prevRow[c] = v;
+      upLeft = up;
+      leftVal = v;
 
       cMod6++;
       if (cMod6 === 6) cMod6 = 0;
     }
-    if (runLen >= 5) penalty += runLen - 2;
+    if (hRunLen >= 5) penalty += hRunLen - 2;
   }
 
-  // N1 + N3 vertical over the masked scratch
+  // Flush trailing vertical runs (columns whose last run reaches the bottom)
   for (let c = 0; c < size; c++) {
-    let runVal = -1;
-    let runLen = 0;
-    let win = 0;
-    for (let r = 0; r < size; r++) {
-      const v = scratch[r * size + c];
-      if (v === runVal) {
-        runLen++;
-      } else {
-        if (runLen >= 5) penalty += runLen - 2;
-        runVal = v;
-        runLen = 1;
-      }
-      win = ((win << 1) | v) & N3_WINDOW_MASK;
-      if (r >= 10 && (win === N3_WINDOW1 || win === N3_WINDOW2)) {
-        penalty += 40;
-      }
-    }
-    if (runLen >= 5) penalty += runLen - 2;
+    if (colRunLen[c] >= 5) penalty += colRunLen[c] - 2;
   }
 
   penalty += n4Penalty(darkCount, size * size);
@@ -357,11 +375,16 @@ function scoreBestMask(
   fn: Uint8Array,
   size: number,
 ): MaskPattern {
-  const scratch = new Uint8Array(size * size);
+  const scratch: MaskScratch = {
+    prevRow: new Uint8Array(size),
+    colRunVal: new Int8Array(size),
+    colRunLen: new Uint16Array(size),
+    colWin: new Uint16Array(size),
+  };
   let bestMask: MaskPattern = 0;
   let bestPenalty = Infinity;
   for (let p = 0; p < 8; p++) {
-    const penalty = applyAndScore(scratch, base, fn, size, p * 72);
+    const penalty = applyAndScore(base, fn, size, p * 72, scratch);
     if (penalty < bestPenalty) {
       bestPenalty = penalty;
       bestMask = p as MaskPattern;

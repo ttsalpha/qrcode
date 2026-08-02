@@ -67,28 +67,28 @@ function getCachedPolynomial(nECC: number): Uint8Array {
   return poly;
 }
 
-// Compute `nECC` Reed-Solomon error correction codewords for `data`
+// Compute `nECC` Reed-Solomon error correction codewords for `data`.
+// Every RS generator coefficient is non-zero (a product of (x − α^i) terms in
+// GF(256)), so the inner loop needs no zero-coefficient guard.
 export function computeECC(data: ArrayLike<number>, nECC: number): Uint8Array {
   const generator = getCachedPolynomial(nECC);
   const genLen = generator.length;
+  const dataLen = data.length;
   // Initialize remainder as data codewords followed by nECC zeros
-  const remainder = new Uint8Array(data.length + nECC);
+  const remainder = new Uint8Array(dataLen + nECC);
   remainder.set(data);
 
-  for (let i = 0; i < data.length; i++) {
+  for (let i = 0; i < dataLen; i++) {
     const coeff = remainder[i];
     if (coeff !== 0) {
       const logCoeff = LOG_TABLE[coeff];
       for (let j = 0; j < genLen; j++) {
-        const g = generator[j];
-        if (g !== 0) {
-          remainder[i + j] ^= EXP_TABLE[LOG_TABLE[g] + logCoeff];
-        }
+        remainder[i + j] ^= EXP_TABLE[LOG_TABLE[generator[j]] + logCoeff];
       }
     }
   }
 
-  return remainder.slice(data.length);
+  return remainder.slice(dataLen);
 }
 
 // EC block layout per ISO/IEC 18004:2015 Table 9, stored compactly.

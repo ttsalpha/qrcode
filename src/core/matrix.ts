@@ -2,49 +2,20 @@ import type { ErrorCorrectionLevel } from '../types';
 import { encodeQR } from './encode';
 import { selectAndApplyBestMaskFlat } from './mask';
 
-// Alignment pattern center positions per version (ISO 18004 Annex E)
-const ALIGNMENT_PATTERN_TABLE: number[][] = [
-  [], // V1
-  [6, 18], // V2
-  [6, 22], // V3
-  [6, 26], // V4
-  [6, 30], // V5
-  [6, 34], // V6
-  [6, 22, 38], // V7
-  [6, 24, 42], // V8
-  [6, 26, 46], // V9
-  [6, 28, 50], // V10
-  [6, 30, 54], // V11
-  [6, 32, 58], // V12
-  [6, 34, 62], // V13
-  [6, 26, 46, 66], // V14
-  [6, 26, 48, 70], // V15
-  [6, 26, 50, 74], // V16
-  [6, 30, 54, 78], // V17
-  [6, 30, 56, 82], // V18
-  [6, 30, 58, 86], // V19
-  [6, 34, 62, 90], // V20
-  [6, 28, 50, 72, 94], // V21
-  [6, 26, 50, 74, 98], // V22
-  [6, 30, 54, 78, 102], // V23
-  [6, 28, 54, 80, 106], // V24
-  [6, 32, 58, 84, 110], // V25
-  [6, 30, 58, 86, 114], // V26
-  [6, 34, 62, 90, 118], // V27
-  [6, 26, 50, 74, 98, 122], // V28
-  [6, 30, 54, 78, 102, 126], // V29
-  [6, 26, 52, 78, 104, 130], // V30
-  [6, 30, 56, 82, 108, 132], // V31
-  [6, 34, 60, 86, 112, 136], // V32
-  [6, 30, 58, 86, 114, 142], // V33
-  [6, 34, 62, 90, 118, 146], // V34
-  [6, 30, 54, 78, 102, 126, 150], // V35
-  [6, 24, 50, 76, 102, 128, 154], // V36
-  [6, 28, 54, 80, 106, 132, 158], // V37
-  [6, 32, 58, 84, 110, 136, 162], // V38
-  [6, 26, 54, 82, 110, 138, 166], // V39
-  [6, 30, 58, 86, 114, 142, 170], // V40
-];
+// Alignment pattern centers per version (ISO 18004 Annex E), derived instead of
+// stored as a 40-row table: start at 6, end at 4·version+10 (= size−7), interior
+// points evenly spaced on an even step. Version 32's step (26) is the documented
+// exception to the even-spacing rule. Reproduces Annex E exactly for all 40.
+function alignmentCenters(version: number): number[] {
+  if (version === 1) return [];
+  const count = ((version / 7) | 0) + 2;
+  const last = version * 4 + 10;
+  const step =
+    version === 32 ? 26 : Math.ceil((last - 6) / (count - 1) / 2) * 2;
+  const centers = [6];
+  for (let i = 1; i < count; i++) centers.push(last - (count - 1 - i) * step);
+  return centers;
+}
 
 // Pre-computed 15-bit format information strings (ISO 18004 §7.8.2).
 // Each value encodes: 2-bit EC level | 3-bit mask pattern | 10-bit BCH error correction,
@@ -368,7 +339,7 @@ export function computeQRMatrix(
   functionModules[darkIdx] = 1;
 
   // Place alignment patterns
-  const alignCenters = ALIGNMENT_PATTERN_TABLE[version - 1];
+  const alignCenters = alignmentCenters(version);
   for (const r of alignCenters) {
     for (const c of alignCenters) {
       // Skip positions that overlap any of the three finder pattern areas

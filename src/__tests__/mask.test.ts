@@ -129,7 +129,7 @@ describe('selectBestMask', () => {
   });
 });
 
-// mulberry32 — deterministic PRNG so failures are reproducible
+// mulberry32: deterministic PRNG so failures are reproducible
 function seededRandom(seed: number): () => number {
   let a = seed;
   return () => {
@@ -156,7 +156,7 @@ function randomFunctionModules(size: number, rand: () => number): boolean[][] {
 
 describe('selectAndApplyBestMaskFlat (production apply) vs reference', () => {
   // Covers the flat MASK_TABLE XOR apply loop that production actually runs
-  // (via generateQRMatrix) — the bridge test below applies via the reference
+  // (via generateQRMatrix). The bridge test below applies via the reference
   // path, so without this a bug in the flat apply would ship undetected.
   const sizes = [21, 57, 177];
   const casesPerSize = { 21: 15, 57: 10, 177: 3 } as Record<number, number>;

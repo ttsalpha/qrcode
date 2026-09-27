@@ -28,7 +28,7 @@ function getFinderPatternModules(size: number): Set<number> {
   return modules;
 }
 
-// 21×21 all-light flat grid with specific dark modules set — placed in the
+// 21×21 all-light flat grid with specific dark modules set, placed in the
 // center so they sit outside the excluded finder regions.
 function matrixWith(cells: Array<[number, number]>): Uint8Array {
   const m = new Uint8Array(21 * 21);

@@ -44,7 +44,7 @@ describe('toSVGString', () => {
       value: 'TEST',
       backgroundColor: 'transparent',
     });
-    // no background rect — transparent means no rect rendered
+    // no background rect: transparent means no rect rendered
     const rects = result.match(/<rect/g) ?? [];
     expect(rects.length).toBe(0);
   });

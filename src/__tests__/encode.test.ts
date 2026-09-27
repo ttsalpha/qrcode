@@ -67,7 +67,7 @@ describe('encodeQR', () => {
   });
 
   // Expected versions captured from the brute-force selection loop before it
-  // was replaced with arithmetic bit counting — pins identical behavior at
+  // was replaced with arithmetic bit counting, pinning identical behavior at
   // capacity edges and version-group boundaries (char count width changes).
   it('auto-selects versions at capacity boundaries (alphanumeric)', () => {
     expect(encodeQR('A'.repeat(20), 'M').version).toBe(1);
@@ -93,7 +93,7 @@ describe('encodeQR', () => {
   });
 
   it('auto-selects versions across the v9/v10 group boundary', () => {
-    // Character count indicator widens at v10 — boundary must stay exact
+    // Character count indicator widens at v10, so the boundary must stay exact
     expect(encodeQR('A'.repeat(177), 'M').version).toBe(7);
     expect(encodeQR('A'.repeat(178), 'M').version).toBe(8);
     expect(encodeQR('A'.repeat(174), 'H').version).toBe(10);

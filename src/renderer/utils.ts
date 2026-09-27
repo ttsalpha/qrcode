@@ -52,8 +52,8 @@ export function cornerDotPath(
 
 // Returns an SVG path for the outer ring (frame) of a finder pattern corner.
 //
-// The frame is rendered as two overlapping subpaths — an outer rect and an inner cutout —
-// combined into a single <path> element. When the element uses fillRule="evenodd", the
+// The frame is rendered as two overlapping subpaths (an outer rect and an inner
+// cutout) combined into a single <path> element. When the element uses fillRule="evenodd", the
 // overlapping region becomes transparent, producing the hollow ring effect.
 //
 // size is always 7 * moduleSize (the full finder width in pixels).

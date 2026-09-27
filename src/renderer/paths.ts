@@ -1,11 +1,11 @@
 import type { DotStyle } from '../types';
 
-// Round to 2 decimals — keeps path strings compact with sub-0.01px error
+// Round to 2 decimals: keeps path strings compact with sub-0.01px error
 export const r2 = (n: number): number => Math.round(n * 100) / 100;
 
 // The QR module grid as a flat, row-major Uint8Array (1 = dark, 0 = light) of
 // length size*size, as produced by generateQRMatrix. Treated as read-only by
-// the renderer — cached matrices are shared across callers.
+// the renderer, since cached matrices are shared across callers.
 export type QRMatrixView = Uint8Array;
 
 // Finder regions occupy fixed 8×8 corners and are drawn separately, so each
@@ -71,7 +71,7 @@ function renderModulesPer(
   const parts: string[] = [];
 
   if (dotStyle === 'circle') {
-    // Circle geometry is identical for every module — hoist the invariants.
+    // Circle geometry is identical for every module, so hoist the invariants.
     // `half` stays unrounded to match the original r2(x + s/2) rounding order.
     const half = s / 2;
     const rad = r2(half);

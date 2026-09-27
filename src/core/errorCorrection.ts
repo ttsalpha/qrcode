@@ -32,7 +32,7 @@ const LOG_TABLE = /* @__PURE__ */ buildLogTable(EXP_TABLE);
 function gfMul(a: number, b: number): number {
   if (a === 0 || b === 0) return 0;
   // Log values reach 255 (α^255 = 1 overwrites LOG_TABLE[1] during the table
-  // build), so the sum can reach 510 — EXP_TABLE must stay ≥ 511 entries.
+  // build), so the sum can reach 510. EXP_TABLE must stay ≥ 511 entries.
   return EXP_TABLE[LOG_TABLE[a] + LOG_TABLE[b]];
 }
 
@@ -93,9 +93,9 @@ export function computeECC(data: ArrayLike<number>, nECC: number): Uint8Array {
 
 // EC block layout per ISO/IEC 18004:2015 Table 9, stored compactly.
 // Index = (version - 1) * 4 + ecLevel, where ecLevel 0=L, 1=M, 2=Q, 3=H.
-//   EC_PER_BLOCK[i]  — error-correction codewords per block
-//   NUM_BLOCKS[i]    — number of Reed-Solomon blocks
-//   TOTAL_DATA_CW[i] — total data codewords (the capacity)
+//   EC_PER_BLOCK[i]:  error-correction codewords per block
+//   NUM_BLOCKS[i]:    number of Reed-Solomon blocks
+//   TOTAL_DATA_CW[i]: total data codewords (the capacity)
 // QR uses at most two block sizes per symbol, derivable at runtime: with
 // n = NUM_BLOCKS and D = TOTAL_DATA_CW, the first (n - (D mod n)) blocks hold
 // floor(D / n) data codewords and the remaining blocks hold one more. This
@@ -128,8 +128,8 @@ export function interleaveBlocks(
   const numBlocks = NUM_BLOCKS[idx];
   const totalData = TOTAL_DATA_CW[idx];
   // QR splits the data into at most two block sizes. The first `numShort`
-  // blocks hold `shortLen` codewords, the rest hold one more — identical order
-  // to the original ISO Table 9 groups (short group first).
+  // blocks hold `shortLen` codewords, the rest hold one more, in the same order
+  // as the original ISO Table 9 groups (short group first).
   const shortLen = Math.floor(totalData / numBlocks);
   const numShort = numBlocks - (totalData % numBlocks);
 
@@ -138,7 +138,7 @@ export function interleaveBlocks(
       ? dataCodewords
       : Uint8Array.from(dataCodewords);
 
-  // Block boundaries as offsets into `data` — no per-block copies
+  // Block boundaries as offsets into `data`, so no per-block copies
   const blockOffsets = new Array<number>(numBlocks);
   const blockLengths = new Array<number>(numBlocks);
   const eccBlocks = new Array<Uint8Array>(numBlocks);

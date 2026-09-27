@@ -4,7 +4,7 @@ import {
   interleaveBlocks,
 } from '../core/errorCorrection';
 
-// Frozen snapshot of ISO/IEC 18004:2015 Table 9 — the original 160 nested-object
+// Frozen snapshot of ISO/IEC 18004:2015 Table 9: the original 160 nested-object
 // rows that used to live in errorCorrection.ts before compaction. This proves
 // the compact flat arrays (EC_PER_BLOCK / NUM_BLOCKS / TOTAL_DATA_CW) plus the
 // runtime block-split derivation reproduce the spec table exactly, byte for byte.

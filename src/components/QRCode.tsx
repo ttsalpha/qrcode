@@ -58,7 +58,7 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
   const [elementAspectRatio, setElementAspectRatio] = React.useState(1);
   const measureRef = React.useRef<HTMLDivElement>(null);
 
-  // Sync before first paint — handles cached images and static elements with no flash.
+  // Sync before first paint: handles cached images and static elements with no flash.
   // Falls back to async for uncached images (onload) and dynamic elements (ResizeObserver).
   useIsomorphicLayoutEffect(() => {
     if (!logo?.src || !isSafeSrc(logo.src)) {

@@ -399,7 +399,7 @@ describe('QRCode component', () => {
           logo={{ src: 'https://example.com/logo.png', size: 0 }}
         />,
       );
-      // logo with size=0 produces zero dimensions — should not render
+      // logo with size=0 produces zero dimensions, so it should not render
       expect(container.querySelector('image')).toBeNull();
     });
 
@@ -413,7 +413,7 @@ describe('QRCode component', () => {
           }}
         />,
       );
-      // jsdom getBoundingClientRect returns 0 — ResizeObserver fires with 0,0
+      // jsdom getBoundingClientRect returns 0, so ResizeObserver fires with 0,0
       // so aspectRatio stays 1. This test asserts the foreignObject exists and
       // has equal width/height (1:1 fallback) rather than crashing.
       const fo = container.querySelector('foreignObject');

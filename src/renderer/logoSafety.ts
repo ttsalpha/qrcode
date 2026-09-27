@@ -26,7 +26,7 @@ export interface LogoEclResolution {
   ecLevel: ErrorCorrectionLevel;
   // Logo area as a fraction of svgSize², after clamping to the ECL's safe limit
   absoluteArea: number;
-  // Area the user asked for before clamping — used for the dev warning
+  // Area the user asked for before clamping, used for the dev warning
   targetArea: number;
   // True when an explicit ECL forced the logo area to shrink
   clamped: boolean;

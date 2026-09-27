@@ -2,7 +2,7 @@ import { bench, describe } from 'vitest';
 import { computeQRMatrix, generateQRMatrix } from '../core/matrix';
 import { SHORT_ALNUM, MEDIUM_URL, LONG_ALNUM, LONG_NUMERIC } from './payloads';
 
-// computeQRMatrix bypasses the LRU cache — these measure the full
+// computeQRMatrix bypasses the LRU cache, so these measure the full
 // encode + placement + mask-selection pipeline on every iteration.
 describe('computeQRMatrix (cold)', () => {
   bench('short alphanumeric (v1)', () => {
@@ -26,7 +26,7 @@ describe('computeQRMatrix (cold)', () => {
   });
 });
 
-// Repeated identical inputs — measures the LRU cache-hit path that repeated
+// Repeated identical inputs: measures the LRU cache-hit path that repeated
 // renders of the same value take in production.
 describe('generateQRMatrix (cache hit)', () => {
   bench('medium URL (byte, v7)', () => {

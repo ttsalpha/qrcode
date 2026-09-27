@@ -149,7 +149,7 @@ function penaltyN3(matrix: boolean[][]): number {
     }
   }
 
-  // Vertical — index directly into matrix to avoid column array allocations
+  // Vertical: index directly into matrix to avoid column array allocations
   for (let c = 0; c < size; c++) {
     for (let r = 0; r <= size - 11; r++) {
       if (
@@ -236,8 +236,8 @@ export function selectBestMask(
 // The reference path above runs apply + 6 penalty passes + undo per mask
 // (~72 full-matrix scans). The fast path applies the mask into a reused
 // scratch buffer while scoring N1/N2/N3/N4 in the same row-major pass, then
-// scores the vertical rules in one column-major pass — ~2 passes per mask,
-// no undo.
+// scores the vertical rules in one column-major pass, about 2 passes per mask
+// and no undo.
 // ---------------------------------------------------------------------------
 
 // Every mask condition depends only on (r mod 12, c mod 6): row terms use
@@ -275,7 +275,7 @@ interface MaskScratch {
 
 // Full ISO 18004 penalty for one mask in a single row-major pass. Vertical
 // N1/N3 use per-column running state (no cache-hostile column pass); N2 needs
-// only the previous row. The mask is never materialised — values are scored
+// only the previous row. The mask is never materialised: values are scored
 // inline as they are computed.
 function applyAndScore(
   base: Uint8Array,
@@ -419,7 +419,7 @@ export function selectAndApplyBestMaskFlat(
   return bestMask;
 }
 
-// boolean[][] bridge kept for the differential test suite — production goes
+// boolean[][] bridge kept for the differential test suite. Production goes
 // through selectAndApplyBestMaskFlat. Scores via the fast path, applies via
 // the reference applyMaskInPlace.
 export function selectAndApplyBestMask(

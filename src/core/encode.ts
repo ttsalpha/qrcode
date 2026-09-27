@@ -17,7 +17,7 @@ const EC_LEVEL_INDEX: Record<ErrorCorrectionLevel, number> = {
   H: 3,
 };
 
-// Lazy singleton — avoids throwing at import time on runtimes without a
+// Lazy singleton: avoids throwing at import time on runtimes without a
 // global TextEncoder when only numeric/alphanumeric data is ever encoded.
 let textEncoder: TextEncoder | undefined;
 function getTextEncoder(): TextEncoder {
@@ -48,7 +48,7 @@ class BitWriter {
     return this.bitPos;
   }
 
-  // Advances the cursor without writing — the buffer is already zeroed.
+  // Advances the cursor without writing, since the buffer is already zeroed.
   skipBits(count: number): void {
     this.bitPos += count;
   }

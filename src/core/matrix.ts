@@ -23,7 +23,7 @@ export function alignmentCenters(version: number): number[] {
 // then XORed with the mask 0x5412 (101010000010010) to ensure no all-zero result.
 //
 // Index: ecLevel * 8 + maskPattern (0-based)
-// EC level ordering in format bits: L=01, M=00, Q=11, H=10 (not alphabetical — per spec)
+// EC level ordering in format bits: L=01, M=00, Q=11, H=10 (not alphabetical, per spec)
 const FORMAT_INFO_TABLE: number[] = [
   // L (EC level bits 01)
   0x77c4, 0x72f3, 0x7daa, 0x789d, 0x662f, 0x6318, 0x6c41, 0x6976,
@@ -76,7 +76,7 @@ const VERSION_INFO_TABLE: number[] = [
 ];
 
 // The matrix is built on a flat Uint8Array buffer (index = row * size + col,
-// values 0/1) and returned as-is — that flat grid is what the renderer reads.
+// values 0/1) and returned as-is. That flat grid is what the renderer reads.
 
 // Places a 7×7 finder pattern with its 1-module white separator.
 // The loop range r,c = -1..7 covers both the finder (0..6) and the separator (-1 and 7)
@@ -226,7 +226,7 @@ function placeVersionInfo(
 //
 // Bits are placed in 2-column-wide strips, scanning right to left across the symbol.
 // Within each strip, bits fill top-to-bottom or bottom-to-top alternately.
-// Column 6 is the vertical timing pattern and is always skipped — the strip simply
+// Column 6 is the vertical timing pattern and is always skipped: the strip simply
 // narrows to 1 column when it would overlap col 6.
 // Function module cells (finders, timing, format, alignment) are skipped silently;
 // any remaining capacity after all codewords is filled with zeros (remainder bits).
@@ -276,7 +276,7 @@ function placeDataBits(
 
 export interface QRMatrixResult {
   // Flat, row-major grid (1 = dark) of length size*size. Read-only: cached
-  // results are shared across callers — mutating a matrix would poison every
+  // results are shared across callers, so mutating a matrix would poison every
   // subsequent render of the same value.
   matrix: Uint8Array;
   version: number;
@@ -367,12 +367,12 @@ export function computeQRMatrix(
   const bestMask = selectAndApplyBestMaskFlat(matrix, functionModules, size);
 
   // Write format information in-place on the already-masked matrix.
-  // FORMAT_INFO_TABLE rows are ordered L, M, Q, H — the same order as
+  // FORMAT_INFO_TABLE rows are ordered L, M, Q, H, the same order as
   // EncodeResult.ecLevelIndex.
   const formatBits = FORMAT_INFO_TABLE[ecLevelIndex * 8 + bestMask];
   writeFormatInfo(matrix, formatBits, size);
 
-  // `matrix` is already the final masked + formatted grid — return it directly.
+  // `matrix` is already the final masked + formatted grid, so return it directly.
   // Read-only for consumers: the cache shares this exact buffer.
   return { matrix, version, size };
 }
@@ -402,6 +402,6 @@ function writeFormatInfo(
   for (let i = 0; i < 7; i++) {
     matrix[(size - 7 + i) * size + 8] = (formatBits >> (i + 8)) & 1;
   }
-  // dark module — always forced dark regardless of mask or format bits (ISO 18004 §7.8.2)
+  // dark module: always forced dark regardless of mask or format bits (ISO 18004 §7.8.2)
   matrix[(size - 8) * size + 8] = 1;
 }

@@ -5,7 +5,7 @@ import { QRCode } from './components/QRCode';
 import { buildSVGString } from './renderer/svgDirect';
 
 export function toSVGString(props: QRCodeProps): string {
-  // logo.element is a React node — must go through renderToStaticMarkup
+  // logo.element is a React node, so it must go through renderToStaticMarkup
   if (props.logo?.element) {
     return renderToStaticMarkup(createElement(QRCode, props));
   }
@@ -47,7 +47,7 @@ export async function toDataURL(
           return;
         }
 
-        // JPEG has no alpha channel — fill background before drawing
+        // JPEG has no alpha channel, so fill the background before drawing
         if (format === 'jpeg') {
           ctx.fillStyle =
             !props.backgroundColor || props.backgroundColor === 'transparent'

@@ -14,6 +14,7 @@ Lightweight, fully customizable React QR code library — pure SVG, zero depende
 
 - **Pure SVG** — no canvas, no raster images, scales perfectly at any size
 - **Zero runtime dependencies** — QR encoding implemented from scratch (ISO/IEC 18004)
+- **Smaller symbols** — optimal multi-segment encoding picks the cheapest mode per run of characters
 - **Fully typed** — written in TypeScript with strict mode
 - **3 dot styles** — square, circle, and snake-connected rounded
 - **Customizable corners** — independent style and color for each finder pattern part
@@ -213,11 +214,27 @@ link.click();
 ## Technical Details
 
 - QR versions 1–40, auto-selects the minimum version that fits the data
-- Encoding modes: Numeric, Alphanumeric, Byte (UTF-8) — auto-selected
+- Encoding modes: Numeric, Alphanumeric, Byte (UTF-8) — mixed automatically
+- Optimal multi-segment encoding: the encoder splits the value into the cheapest
+  sequence of mode segments rather than forcing one mode over the whole string,
+  so digit-heavy structured payloads fit a smaller symbol
 - Full Reed-Solomon error correction over GF(256)
 - All 8 mask patterns evaluated with ISO 18004 penalty scoring
 - All function patterns: finder, separator, timing, alignment, dark module, format info, version info
 - Generated matrices are memoized (16-entry LRU) — repeated renders of the same value skip encoding entirely
+
+### Encoding
+
+The value is split into the cheapest sequence of mode segments, rather than
+picking one mode for the whole string. Numeric data costs 3⅓ bits per character
+and alphanumeric 5½, against 8 bits per UTF-8 byte in byte mode, so a long digit
+run inside otherwise mixed text is worth its own segment even after paying for a
+second mode header.
+
+This matters most for structured payloads. An EMVCo / VietQR string drops from
+version 7 to version 5 (45 to 37 modules per side) at the same error correction
+level; an ordinary lowercase URL has nothing to split and is unaffected. The
+result is never larger than single-mode encoding.
 
 ## License
 

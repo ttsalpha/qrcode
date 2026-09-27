@@ -1,6 +1,12 @@
 import { bench, describe } from 'vitest';
 import { encodeQR } from '../core/encode';
-import { SHORT_ALNUM, MEDIUM_URL, LONG_ALNUM, LONG_NUMERIC } from './payloads';
+import {
+  SHORT_ALNUM,
+  MEDIUM_URL,
+  LONG_ALNUM,
+  LONG_NUMERIC,
+  MIXED_EMVCO,
+} from './payloads';
 
 describe('encodeQR', () => {
   bench('short alphanumeric (v1)', () => {
@@ -17,6 +23,10 @@ describe('encodeQR', () => {
 
   bench('long numeric (2000 digits)', () => {
     encodeQR(LONG_NUMERIC, 'M');
+  });
+
+  bench('mixed EMVCo (segmentation search)', () => {
+    encodeQR(MIXED_EMVCO, 'M');
   });
 
   bench('forced v40 (medium URL)', () => {

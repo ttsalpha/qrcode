@@ -1,23 +1,32 @@
 import { describe, it, expect } from 'vitest';
 import { encodeQR } from '../core/encode';
 import { generateQRMatrix } from '../core/matrix';
+import type { EncodingMode } from '../types';
+
+// Segmentation is per-mode now, so assert on the resulting mode sequence.
+const modesOf = (
+  value: string,
+  ...args: [] | [Parameters<typeof encodeQR>[1]]
+) => encodeQR(value, ...args).segments.map((s) => s.mode);
+const singleMode = (value: string): EncodingMode | undefined => {
+  const modes = modesOf(value, 'M');
+  return modes.length === 1 ? modes[0] : undefined;
+};
 
 describe('encodeQR', () => {
   it('encodes v1-M correctly', () => {
     const result = encodeQR('HELLO WORLD', 'M');
     expect(result.version).toBe(1);
     expect(result.ecLevelIndex).toBe(1); // M
-    expect(result.mode).toBe('alphanumeric');
+    expect(result.segments.map((s) => s.mode)).toEqual(['alphanumeric']);
   });
 
   it('uses numeric mode for digit-only strings', () => {
-    const result = encodeQR('01234567', 'M');
-    expect(result.mode).toBe('numeric');
+    expect(singleMode('01234567')).toBe('numeric');
   });
 
   it('uses byte mode for strings with non-alphanumeric chars', () => {
-    const result = encodeQR('hello world', 'M');
-    expect(result.mode).toBe('byte');
+    expect(singleMode('hello world')).toBe('byte');
   });
 
   it('auto-selects correct version for different data lengths', () => {
@@ -101,7 +110,8 @@ describe('encodeQR', () => {
   it('uses UTF-8 byte length (not string length) for byte mode capacity', () => {
     // The euro sign is 3 UTF-8 bytes; 5 chars → 15 bytes > v1-M's 14-byte limit
     const result = encodeQR('€'.repeat(5), 'M');
-    expect(result.mode).toBe('byte');
+    expect(result.segments.map((s) => s.mode)).toEqual(['byte']);
+    expect(result.segments[0].charCount).toBe(15); // UTF-8 bytes, not chars
     expect(result.version).toBe(2);
   });
 

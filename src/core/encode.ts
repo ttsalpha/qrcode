@@ -1,5 +1,14 @@
-import type { ErrorCorrectionLevel, EncodingMode } from '../types';
+import type { ErrorCorrectionLevel } from '../types';
 import { getDataCodewordsCapacity, interleaveBlocks } from './errorCorrection';
+import {
+  ALPHANUMERIC_LUT,
+  MODE_INDICATOR,
+  VERSION_GROUPS,
+  planSegments,
+  charCountBits,
+  segmentsDataBytes,
+  type Segment,
+} from './segments';
 
 const EC_LEVEL_INDEX: Record<ErrorCorrectionLevel, number> = {
   L: 0,
@@ -13,96 +22,6 @@ const EC_LEVEL_INDEX: Record<ErrorCorrectionLevel, number> = {
 let textEncoder: TextEncoder | undefined;
 function getTextEncoder(): TextEncoder {
   return (textEncoder ??= new TextEncoder());
-}
-
-// 45-character set defined in ISO 18004 Table 5. Indexed by ASCII char code so
-// encoding never allocates single-char strings or hits a Map. The stored value
-// (the char's position in the set) is the numeric value used during encoding;
-// -1 marks a code outside the set.
-function buildAlphanumericLookup(): Int8Array {
-  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:';
-  const lut = new Int8Array(128).fill(-1);
-  for (let i = 0; i < chars.length; i++) lut[chars.charCodeAt(i)] = i;
-  return lut;
-}
-
-const ALPHANUMERIC_LUT = /* @__PURE__ */ buildAlphanumericLookup();
-
-// Alphanumeric value for an ASCII char code, or -1 if unsupported.
-function alnumValue(code: number): number {
-  return code < 128 ? ALPHANUMERIC_LUT[code] : -1;
-}
-
-function isNumeric(str: string): boolean {
-  return /^[0-9]+$/.test(str);
-}
-
-function isAlphanumeric(str: string): boolean {
-  for (let i = 0; i < str.length; i++) {
-    if (alnumValue(str.charCodeAt(i)) < 0) return false;
-  }
-  return true;
-}
-
-// Prefer the most compact mode that can represent all characters.
-function detectMode(data: string): EncodingMode {
-  if (isNumeric(data)) return 'numeric';
-  if (isAlphanumeric(data)) return 'alphanumeric';
-  return 'byte';
-}
-
-// Character count indicator width varies by version group (ISO 18004 Table 3).
-// Versions 1–9 use narrower indicators; 27–40 need the widest.
-function charCountBits(mode: EncodingMode, version: number): number {
-  if (mode === 'numeric') {
-    if (version <= 9) return 10;
-    if (version <= 26) return 12;
-    return 14;
-  }
-  if (mode === 'alphanumeric') {
-    if (version <= 9) return 9;
-    if (version <= 26) return 11;
-    return 13;
-  }
-  // byte mode
-  if (version <= 9) return 8;
-  return 16;
-}
-
-// 4-bit mode indicators per ISO 18004 Table 2.
-const MODE_INDICATOR: Record<EncodingMode, number> = {
-  numeric: 0b0001,
-  alphanumeric: 0b0010,
-  byte: 0b0100,
-};
-
-// Exact payload bit count per mode (ISO 18004 §7.4.3–7.4.5), computed
-// arithmetically so version selection never has to build a bit stream.
-// `charCount` is the UTF-8 byte length in byte mode, string length otherwise.
-const NUMERIC_REMAINDER_BITS = [0, 4, 7];
-
-function payloadBits(mode: EncodingMode, charCount: number): number {
-  if (mode === 'numeric') {
-    return (
-      10 * Math.floor(charCount / 3) + NUMERIC_REMAINDER_BITS[charCount % 3]
-    );
-  }
-  if (mode === 'alphanumeric') {
-    return 11 * Math.floor(charCount / 2) + 6 * (charCount % 2);
-  }
-  return 8 * charCount;
-}
-
-// Total data bytes needed for one segment at a given version, including the
-// 4-bit mode indicator and the (up to) 4-bit terminator, rounded up to a byte.
-function totalDataBytes(
-  mode: EncodingMode,
-  charCount: number,
-  version: number,
-): number {
-  const bits = 4 + charCountBits(mode, version) + payloadBits(mode, charCount);
-  // +4 for terminator; round up to next byte boundary
-  return Math.ceil((bits + 4) / 8);
 }
 
 // Writes bits MSB-first into a preallocated byte buffer.
@@ -142,55 +61,54 @@ class BitWriter {
 // 0xEC and 0x11 are the two alternating pad codewords specified in ISO 18004 §7.4.10.
 const PAD_BYTES = [0xec, 0x11];
 
-// Encodes the data segment directly into a byte buffer of exactly `capacity`
-// data codewords: mode indicator, character count, payload, terminator,
-// zero-padding to the byte boundary, then alternating pad codewords (§7.4.10).
+// Encodes every segment into a byte buffer of exactly `capacity` data
+// codewords: per segment a mode indicator and character count followed by the
+// payload, then the terminator, zero-padding to the byte boundary, and
+// alternating pad codewords (§7.4.10).
 function encodeIntoCodewords(
   data: string,
-  mode: EncodingMode,
+  segments: readonly Segment[],
   version: number,
   capacity: number,
   byteEncoded: Uint8Array | null,
 ): Uint8Array {
   const writer = new BitWriter(capacity);
 
-  writer.writeBits(MODE_INDICATOR[mode], 4);
+  for (const seg of segments) {
+    writer.writeBits(MODE_INDICATOR[seg.mode], 4);
+    writer.writeBits(seg.charCount, charCountBits(seg.mode, version));
 
-  const charCount = byteEncoded !== null ? byteEncoded.length : data.length;
-  writer.writeBits(charCount, charCountBits(mode, version));
-
-  if (mode === 'numeric') {
-    // Groups of 3 digits → 10 bits, 2 → 7 bits, 1 → 4 bits (ISO 18004 §7.4.3)
-    const len = data.length;
-    for (let i = 0; i < len; i += 3) {
-      const remaining = len - i;
-      let val = data.charCodeAt(i) - 48;
-      if (remaining >= 2) val = val * 10 + (data.charCodeAt(i + 1) - 48);
-      if (remaining >= 3) val = val * 10 + (data.charCodeAt(i + 2) - 48);
-      writer.writeBits(val, remaining >= 3 ? 10 : remaining === 2 ? 7 : 4);
-    }
-  } else if (mode === 'alphanumeric') {
-    // Pair of chars → first*45 + second, 11 bits; single char → 6 bits (§7.4.4)
-    const len = data.length;
-    for (let i = 0; i < len; i += 2) {
-      if (i + 1 < len) {
-        const val =
-          ALPHANUMERIC_LUT[data.charCodeAt(i)] * 45 +
-          ALPHANUMERIC_LUT[data.charCodeAt(i + 1)];
-        writer.writeBits(val, 11);
-      } else {
-        writer.writeBits(ALPHANUMERIC_LUT[data.charCodeAt(i)], 6);
+    if (seg.mode === 'numeric') {
+      // Groups of 3 digits → 10 bits, 2 → 7 bits, 1 → 4 bits (ISO 18004 §7.4.3)
+      for (let i = seg.start; i < seg.end; i += 3) {
+        const remaining = Math.min(3, seg.end - i);
+        let val = data.charCodeAt(i) - 48;
+        if (remaining >= 2) val = val * 10 + (data.charCodeAt(i + 1) - 48);
+        if (remaining >= 3) val = val * 10 + (data.charCodeAt(i + 2) - 48);
+        writer.writeBits(val, remaining === 3 ? 10 : remaining === 2 ? 7 : 4);
       }
-    }
-  } else {
-    // Each UTF-8 byte → 8 bits (§7.4.5)
-    for (const byte of byteEncoded!) {
-      writer.writeBits(byte, 8);
+    } else if (seg.mode === 'alphanumeric') {
+      // Pair of chars → first*45 + second, 11 bits; single char → 6 bits (§7.4.4)
+      for (let i = seg.start; i < seg.end; i += 2) {
+        if (i + 1 < seg.end) {
+          const val =
+            ALPHANUMERIC_LUT[data.charCodeAt(i)] * 45 +
+            ALPHANUMERIC_LUT[data.charCodeAt(i + 1)];
+          writer.writeBits(val, 11);
+        } else {
+          writer.writeBits(ALPHANUMERIC_LUT[data.charCodeAt(i)], 6);
+        }
+      }
+    } else {
+      // Each UTF-8 byte → 8 bits (§7.4.5)
+      for (let i = seg.byteStart; i < seg.byteEnd; i++) {
+        writer.writeBits((byteEncoded as Uint8Array)[i], 8);
+      }
     }
   }
 
   // Backstop for the arithmetic capacity check: typed-array OOB writes are
-  // silent, so any drift between totalDataBytes and the writer must fail loudly.
+  // silent, so any drift between segmentsDataBytes and the writer must fail loudly.
   const maxBits = capacity * 8;
   if (writer.bitLength > maxBits) {
     throw new RangeError(
@@ -217,7 +135,7 @@ export interface EncodeResult {
   codewords: Uint8Array;
   version: number;
   ecLevelIndex: number;
-  mode: EncodingMode;
+  segments: Segment[];
 }
 
 export function encodeQR(
@@ -230,16 +148,13 @@ export function encodeQR(
   }
 
   const ecIdx = EC_LEVEL_INDEX[ecLevel];
-  const mode = detectMode(data);
+  // The scan and per-character tables are shared across the version groups.
+  const plan = planSegments(data);
+  const segmentsFor = (version: number): Segment[] => plan.forVersion(version);
 
-  // UTF-8 encode once up front — the byte length drives both the character
-  // count indicator and the version capacity check.
-  const byteEncoded = mode === 'byte' ? getTextEncoder().encode(data) : null;
-  const charCount = byteEncoded !== null ? byteEncoded.length : data.length;
+  let version: number;
+  let segments: Segment[];
 
-  // Find the minimum version whose data capacity fits the encoded stream.
-  // Pure arithmetic — no bit stream is built until the version is known.
-  let version = 1;
   if (requestedVersion !== undefined) {
     if (
       !Number.isInteger(requestedVersion) ||
@@ -251,35 +166,47 @@ export function encodeQR(
       );
     }
     version = requestedVersion;
+    segments = segmentsFor(version);
     const capacity = getDataCodewordsCapacity(version, ecIdx);
-    const totalBytes = totalDataBytes(mode, charCount, version);
+    const totalBytes = segmentsDataBytes(segments, version);
     if (totalBytes > capacity) {
       throw new RangeError(
         `data too large for version ${version} with EC level "${ecLevel}" (needs ${totalBytes} bytes, capacity ${capacity})`,
       );
     }
   } else {
-    let found = false;
-    for (let v = 1; v <= 40; v++) {
-      if (
-        totalDataBytes(mode, charCount, v) <= getDataCodewordsCapacity(v, ecIdx)
-      ) {
-        version = v;
-        found = true;
-        break;
+    // The character count indicator widths, and therefore the optimal
+    // segmentation, are constant within a version group — so the search runs
+    // three times at most, not once per version.
+    let found: { version: number; segments: Segment[] } | undefined;
+    for (const [lo, hi] of VERSION_GROUPS) {
+      const groupSegments = segmentsFor(lo);
+      const totalBytes = segmentsDataBytes(groupSegments, lo);
+      for (let v = lo; v <= hi; v++) {
+        if (totalBytes <= getDataCodewordsCapacity(v, ecIdx)) {
+          found = { version: v, segments: groupSegments };
+          break;
+        }
       }
+      if (found) break;
     }
     if (!found) {
       throw new RangeError(
         `data too large for any QR version with EC level "${ecLevel}"`,
       );
     }
+    version = found.version;
+    segments = found.segments;
   }
+
+  // UTF-8 encode only when a byte segment actually needs the bytes.
+  const needsBytes = segments.some((seg) => seg.mode === 'byte');
+  const byteEncoded = needsBytes ? getTextEncoder().encode(data) : null;
 
   const capacity = getDataCodewordsCapacity(version, ecIdx);
   const paddedBytes = encodeIntoCodewords(
     data,
-    mode,
+    segments,
     version,
     capacity,
     byteEncoded,
@@ -287,5 +214,5 @@ export function encodeQR(
 
   const codewords = interleaveBlocks(paddedBytes, version, ecIdx);
 
-  return { codewords, version, ecLevelIndex: ecIdx, mode };
+  return { codewords, version, ecLevelIndex: ecIdx, segments };
 }

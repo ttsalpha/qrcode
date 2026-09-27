@@ -96,4 +96,36 @@ describe('round-trip: generated matrices decode', () => {
     const { rgba, side } = rasterize(matrix, size);
     expect(jsQR(rgba, side, side)?.data).toBe(value);
   });
+
+  // Mixed payloads are the ones the segmentation search actually splits, so
+  // these are the cases where a wrong mode indicator, character count or
+  // segment boundary would surface.
+  const MIXED: Array<[string, string]> = [
+    [
+      'EMVCo / VietQR',
+      '00020101021238570010A00000072701270006970436011312345678901230208QRIBFTTA53037045802VN62150811Thanh toan6304A1B2',
+    ],
+    [
+      'uppercase URL with digits',
+      'HTTPS://SHOP.EXAMPLE.COM/ORDER/1234567890123456789012345',
+    ],
+    ['wifi', 'WIFI:S:MyNetwork5G;T:WPA;P:s3cr3tPassw0rd2024;;'],
+    ['digit run inside alphanumeric', 'ABC' + '9'.repeat(120)],
+    [
+      'multi-byte and digits',
+      'Xin chào 0123456789012345678901234567890 thế giới',
+    ],
+    ['astral characters', 'abc😀def😀' + '1'.repeat(60)],
+    ['alternating', 'A1B22C333D4444E55555F666666G7777777H88888888'],
+  ];
+
+  for (const [label, value] of MIXED) {
+    for (const ecl of ECLS) {
+      it(`mixed: ${label} (${ecl})`, () => {
+        const { matrix, size } = computeQRMatrix(value, ecl);
+        const { rgba, side } = rasterize(matrix, size);
+        expect(jsQR(rgba, side, side)?.data).toBe(value);
+      });
+    }
+  }
 });

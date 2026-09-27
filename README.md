@@ -1,6 +1,6 @@
 # @ttsalpha/qrcode
 
-Lightweight, fully customizable React QR code library — pure SVG, zero dependencies, built from scratch.
+Lightweight, fully customizable React QR code library. Pure SVG, zero dependencies, built from scratch.
 
 [![npm](https://img.shields.io/npm/v/@ttsalpha/qrcode)](https://www.npmjs.com/package/@ttsalpha/qrcode)
 [![license](https://img.shields.io/npm/l/@ttsalpha/qrcode)](./LICENSE)
@@ -12,16 +12,16 @@ Lightweight, fully customizable React QR code library — pure SVG, zero depende
 
 ## Features
 
-- **Pure SVG** — no canvas, no raster images, scales perfectly at any size
-- **Zero runtime dependencies** — QR encoding implemented from scratch (ISO/IEC 18004)
-- **Smaller symbols** — optimal multi-segment encoding picks the cheapest mode per run of characters
-- **Fully typed** — written in TypeScript with strict mode
-- **3 dot styles** — square, circle, and snake-connected rounded
-- **Customizable corners** — independent style and color for each finder pattern part
-- **Logo support** — embed an image or any React element in the center
-- **Export helpers** — `toSVGString()` for SSR/server use, `toDataURL()` for PNG/JPEG download
-- **Server-safe entry** — `@ttsalpha/qrcode/server` works in React Server Components
-- **Tree-shakeable** — named exports only, ESM + CJS output
+- **Pure SVG.** No canvas, no raster images, scales perfectly at any size.
+- **Zero runtime dependencies.** QR encoding implemented from scratch (ISO/IEC 18004).
+- **Smaller symbols.** Multi-segment encoding picks the cheapest mode per run of characters.
+- **Fully typed.** Written in TypeScript with strict mode.
+- **3 dot styles.** Square, circle, and snake-connected rounded.
+- **Customizable corners.** Independent style and color for each finder pattern part.
+- **Logo support.** Embed an image or any React element in the center.
+- **Export helpers.** `toSVGString()` for server use, `toDataURL()` for PNG/JPEG download.
+- **Server-safe entry.** `@ttsalpha/qrcode/server` works in React Server Components.
+- **Tree-shakeable.** Named exports only, ESM + CJS output.
 
 ## Installation
 
@@ -50,9 +50,9 @@ export default function App() {
   value="https://example.com"
   size={256}
   dotStyle="rounded"
-  dotColor="#1a1a2e"
+  dotColor="#171717"
   corner={{
-    square: { style: 'extra-rounded', color: '#e94560' },
+    square: { style: 'extra-rounded', color: '#14b8a6' },
   }}
 />
 ```
@@ -72,7 +72,10 @@ export default function App() {
 />
 ```
 
-> `logo.size` is a 0–1 scale relative to the maximum safe area — the component auto-picks the lowest ECL that can support the requested size. Set `qr.errorCorrectionLevel` explicitly only if you need to override this. Non-square logos are supported; aspect ratio is detected automatically.
+`logo.size` is a 0–1 scale relative to the largest safe logo, not a pixel
+size. The error correction level is raised automatically to match, so
+`qr.errorCorrectionLevel` only needs setting when you want to override it. See
+[LogoOptions](#logooptions) for the full mapping.
 
 ### With a React element as logo
 
@@ -90,27 +93,33 @@ export default function App() {
 
 ### `QRCodeProps`
 
-| Prop              | Type            | Default     | Description                           |
-| ----------------- | --------------- | ----------- | ------------------------------------- |
-| `value`           | `string`        | —           | The data to encode (required)         |
-| `size`            | `number`        | `256`       | SVG size in pixels                    |
-| `margin`          | `number`        | `4`         | Quiet zone size in modules            |
-| `dotStyle`        | `DotStyle`      | `'square'`  | Style of data modules                 |
-| `dotColor`        | `string`        | `'#000000'` | Color of data modules                 |
-| `backgroundColor` | `string`        | `'#ffffff'` | Background color (`'transparent'` ok) |
-| `corner`          | `CornerOptions` | —           | Finder pattern corner styles          |
-| `logo`            | `LogoOptions`   | —           | Logo in the center of the QR code     |
-| `qr`              | `QROptions`     | —           | QR encoding options                   |
-| `className`       | `string`        | —           | CSS class on the `<svg>` element      |
-| `style`           | `CSSProperties` | —           | Inline style on the `<svg>` element   |
+| Prop              | Type            | Default   | Description                                      |
+| ----------------- | --------------- | --------- | ------------------------------------------------ |
+| `value`           | `string`        | required  | The data to encode                               |
+| `size`            | `number`        | `256`     | SVG size in pixels                               |
+| `margin`          | `number`        | `4`       | Quiet zone size in modules                       |
+| `dotStyle`        | `DotStyle`      | `square`  | Style of data modules                            |
+| `dotColor`        | `string`        | `#000000` | Color of data modules                            |
+| `backgroundColor` | `string`        | `#ffffff` | Background color (`transparent` ok)              |
+| `corner`          | `CornerOptions` | —         | Finder pattern corner styles                     |
+| `logo`            | `LogoOptions`   | —         | Logo in the center of the QR code                |
+| `qr`              | `QROptions`     | —         | QR encoding options                              |
+| `className`       | `string`        | —         | CSS class on the `<svg>` element                 |
+| `style`           | `CSSProperties` | —         | Inline style on the `<svg>` element              |
+| `ariaLabel`       | `string`        | —         | Accessible label, defaults to `QR code: {value}` |
+
+An empty `value`, or one too long to fit any version, throws a `RangeError`
+rather than rendering nothing. The ceiling is roughly 2,950 bytes at error
+correction level `L` and 1,270 at `H`, so catch it when the value comes from
+user input.
 
 ### `DotStyle`
 
-| Value     | Description                                                             |
-| --------- | ----------------------------------------------------------------------- |
-| `square`  | Full square (default)                                                   |
-| `circle`  | Full circle                                                             |
-| `rounded` | Rounded corners; adjacent modules connect smoothly (snake/fluid effect) |
+| Value     | Description                                                  |
+| --------- | ------------------------------------------------------------ |
+| `square`  | Full square                                                  |
+| `circle`  | Full circle                                                  |
+| `rounded` | Rounded corners, adjacent modules connect into a fluid shape |
 
 ### `CornerOptions`
 
@@ -127,47 +136,78 @@ interface CornerOptions {
 }
 ```
 
-> When `corner.dot.style` is not set, the inner dot style defaults based on the square style: `extra-rounded` → `rounded`, `circle` → `circle`, others → `square`.
+When `corner.dot.style` is omitted it follows the square style:
+
+| `corner.square.style` | default `corner.dot.style` |
+| --------------------- | -------------------------- |
+| `extra-rounded`       | `rounded`                  |
+| `circle`              | `circle`                   |
+| anything else         | `square`                   |
 
 ### `LogoOptions`
 
 ```ts
 interface LogoOptions {
-  src?: string; // https, relative path, blob:, or data:image/… URI
-  element?: ReactNode; // takes priority over src if both provided
-  size?: number; // 0–1 relative to max safe area, default: 0.4; ECL auto-picked; aspect ratio auto-detected
-  margin?: number; // space between logo and edge of cleared area; larger = smaller logo
-  hideDots?: boolean; // clear QR dots behind the logo area, default: true
+  src?: string; // https, relative path, blob:, or data:image/... URI
+  element?: ReactNode; // takes priority over src if both are given
+  size?: number; // 0–1, relative to the largest safe logo. default: 0.4
+  margin?: number; // gap between logo and cleared area. larger means smaller logo
+  hideDots?: boolean; // clear QR dots behind the logo. default: true
 }
 ```
 
-> **ECL is auto-picked** based on `logo.size` — no need to set `qr.errorCorrectionLevel` manually. The size scale maps to empirical safe linear limits: `size ≤ 0.25` → ECL L (logo ≤ 15% width), `≤ 0.44` → ECL M (≤ 20%), `≤ 0.69` → ECL Q (≤ 25%), `≤ 1.0` → ECL H (≤ 30%). If ECL is set explicitly, the logo size is clamped to that ECL's limit. For landscape logos the height is reduced proportionally — the logo is never wider than the QR itself.
+The error correction level is picked from `logo.size`, so a bigger logo
+automatically buys the redundancy it needs:
 
-> **Security:** `javascript:` and non-image `data:` URIs in `src` are silently rejected. Never pass unsanitised user input as `element` — it is rendered verbatim inside a `<foreignObject>`.
+| `logo.size` | Error correction | Logo width, at most |
+| ----------- | ---------------- | ------------------- |
+| `≤ 0.25`    | `L`              | 15% of the QR       |
+| `≤ 0.44`    | `M`              | 20%                 |
+| `≤ 0.69`    | `Q`              | 25%                 |
+| `≤ 1.00`    | `H`              | 30%                 |
+
+Setting `qr.errorCorrectionLevel` yourself overrides this, and the logo is then
+clamped to whatever that level can safely carry (with a console warning in
+development). Aspect ratio is detected from `src` or `element`; for a landscape
+logo the height shrinks proportionally so it is never wider than the QR itself.
+
+`size` snaps to whole modules so the cleared area never cuts a dot in half. It
+lands on the nearest size that fits the grid and never on a larger one, which is
+coarse enough to notice on a small symbol.
+
+> **Security.** `javascript:` and non-image `data:` URIs in `src` are silently
+> rejected. Never pass unsanitised user input as `element`: it is rendered
+> verbatim inside a `<foreignObject>`.
 
 ### `QROptions`
 
 ```ts
 interface QROptions {
   errorCorrectionLevel?: 'L' | 'M' | 'Q' | 'H'; // default: 'M'
-  version?: number; // 1–40, default: auto
+  version?: number; // 1–40. default: auto
 }
 ```
 
 ## Export Helpers
 
-The helpers are available from two entry points:
+Both helpers are available from two entry points:
 
 | Import from               | Use when                                                 |
 | ------------------------- | -------------------------------------------------------- |
-| `@ttsalpha/qrcode`        | client components, anything that also renders `<QRCode>` |
+| `@ttsalpha/qrcode`        | Client components, anything that also renders `<QRCode>` |
 | `@ttsalpha/qrcode/server` | React Server Components, and any server-only code        |
 
-The root entry is marked `'use client'` because it ships the `<QRCode>` component. In a React Server Component every export of a client module becomes a client reference, so calling `toSVGString()` from the root entry there throws. Import from `@ttsalpha/qrcode/server` instead; it exposes the same helpers and types with no client boundary.
+The root entry is marked `'use client'` because it ships the `<QRCode>`
+component. In a React Server Component every export of a client module becomes a
+client reference, so calling `toSVGString()` from the root entry there throws.
+The `/server` entry exposes the same helpers and types with no client boundary.
 
 ### `toSVGString(props)`
 
-Generates an SVG string without mounting to the DOM. Useful for server-side rendering, saving to a database, or copying to clipboard. Output is deterministic: identical props always produce an identical string, so results can be content-hashed and cached.
+Generates an SVG string without mounting to the DOM. Useful for server-side
+rendering, saving to a database, or copying to the clipboard. Output is
+deterministic: identical props always produce an identical string, so results
+can be content-hashed and cached.
 
 ```ts
 import { toSVGString } from '@ttsalpha/qrcode/server';
@@ -178,7 +218,8 @@ const svg = toSVGString({ value: 'https://example.com', size: 512 });
 
 ### `toDataURL(props, options?)`
 
-Renders the QR code to a `data:` URL via Canvas. Browser-only (requires Canvas API).
+Renders the QR code to a `data:` URL via Canvas. Browser only, since it needs
+the Canvas API.
 
 ```ts
 import { toDataURL } from '@ttsalpha/qrcode';
@@ -204,38 +245,38 @@ link.click();
 
 | Option    | Type              | Default         | Description                   |
 | --------- | ----------------- | --------------- | ----------------------------- |
-| `format`  | `'png' \| 'jpeg'` | `'png'`         | Output image format           |
+| `format`  | `'png' \| 'jpeg'` | `png`           | Output image format           |
 | `quality` | `number` (0–1)    | browser default | JPEG quality. Ignored for PNG |
 
-> **Note:** JPEG has no alpha channel. When `backgroundColor` is `'transparent'`, the background is automatically filled with white.
+Two things behave differently here than in `<QRCode>`:
 
-> **Logos:** the SVG is rasterised by loading it as an image, and a document loaded that way is not allowed to fetch external resources. A `logo.src` pointing at an `http(s)` URL is therefore dropped from the output, even though it renders fine in `<QRCode>`. Pass a `data:image/...` URI to `toDataURL` if the logo must appear in the exported image.
+- **Transparency.** JPEG has no alpha channel, so a `transparent`
+  `backgroundColor` is filled with white.
+- **Remote logos.** The SVG is rasterised by loading it as an image, and a
+  document loaded that way may not fetch external resources. A `logo.src`
+  pointing at an `http(s)` URL is dropped from the output even though it renders
+  fine in `<QRCode>`. Pass a `data:image/...` URI if the logo must appear in the
+  exported image.
 
 ## Technical Details
 
 - QR versions 1–40, auto-selects the minimum version that fits the data
-- Encoding modes: Numeric, Alphanumeric, Byte (UTF-8) — mixed automatically
-- Optimal multi-segment encoding: the encoder splits the value into the cheapest
-  sequence of mode segments rather than forcing one mode over the whole string,
-  so digit-heavy structured payloads fit a smaller symbol
+- Encoding modes: Numeric, Alphanumeric, Byte (UTF-8)
 - Full Reed-Solomon error correction over GF(256)
 - All 8 mask patterns evaluated with ISO 18004 penalty scoring
-- All function patterns: finder, separator, timing, alignment, dark module, format info, version info
-- Generated matrices are memoized (16-entry LRU) — repeated renders of the same value skip encoding entirely
+- All function patterns: finder, separator, timing, alignment, dark module,
+  format info, version info
+- Generated matrices are memoized in a 16-entry LRU, so repeated renders of the
+  same value skip encoding entirely
 
 ### Encoding
 
-The value is split into the cheapest sequence of mode segments, rather than
-picking one mode for the whole string. Numeric data costs 3⅓ bits per character
-and alphanumeric 5½, against 8 bits per UTF-8 byte in byte mode, so a long digit
-run inside otherwise mixed text is worth its own segment even after paying for a
-second mode header.
-
-This matters most for structured payloads. An EMVCo / VietQR string drops from
-version 7 to version 5 (45 to 37 modules per side) at the same error correction
-level; an ordinary lowercase URL has nothing to split and is unaffected. The
-result is never larger than single-mode encoding.
+The value is split into the cheapest sequence of mode segments rather than
+forced into one mode, so a long digit run inside mixed text is encoded as
+digits. An EMVCo or VietQR string drops from version 7 to 5 (45 to 37 modules
+per side) at the same error correction level, while an ordinary lowercase URL
+has nothing to split. The result is never larger than single-mode encoding.
 
 ## License
 
-MIT © [Son Tran](https://github.com/ttsalpha)
+[MIT](https://github.com/ttsalpha/qrcode/blob/main/LICENSE) © [Son Tran](https://github.com/ttsalpha)

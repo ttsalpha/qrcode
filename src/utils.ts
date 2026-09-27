@@ -1,13 +1,13 @@
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 import type { QRCodeProps } from './types';
-import { QRCode } from './components/QRCode';
 import { buildSVGString } from './renderer/svgDirect';
 
 export function toSVGString(props: QRCodeProps): string {
-  // logo.element is a React node, so it must go through renderToStaticMarkup
+  // Rendering a React node would pull react-dom/server into every consumer of
+  // this module, including React Server Components, where it does not exist.
   if (props.logo?.element) {
-    return renderToStaticMarkup(createElement(QRCode, props));
+    throw new TypeError(
+      '[QRCode] logo.element cannot be serialised to a string; pass logo.src instead, or render <QRCode>',
+    );
   }
   return buildSVGString(props);
 }
@@ -18,14 +18,31 @@ export interface ToDataURLOptions {
   format?: ImageFormat;
   /** JPEG quality 0–1. Ignored for PNG. Default: browser default (~0.92). */
   quality?: number;
+  /** Raster size multiplier, for exporting above the on-screen size. Default: `1`. */
+  scale?: number;
 }
 
 export async function toDataURL(
   props: QRCodeProps,
   options: ToDataURLOptions = {},
 ): Promise<string> {
-  const { format = 'png', quality } = options;
+  const { format = 'png', quality, scale = 1 } = options;
+
+  // Checked before the blob exists, so a non-browser runtime cannot leak an
+  // object URL that nothing will ever revoke.
+  if (typeof Image === 'undefined' || typeof document === 'undefined') {
+    throw new Error(
+      '[QRCode] toDataURL needs a browser environment (Image and Canvas)',
+    );
+  }
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new RangeError(
+      `[QRCode] scale must be a positive number, got ${scale}`,
+    );
+  }
+
   const size = props.size ?? 256;
+  const pixels = Math.max(1, Math.round(size * scale));
   const svgString = toSVGString(props);
 
   return new Promise((resolve, reject) => {
@@ -39,8 +56,8 @@ export async function toDataURL(
       // throws SecurityError once a cross-origin logo has tainted the canvas.
       try {
         const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
+        canvas.width = pixels;
+        canvas.height = pixels;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
           reject(new Error('[QRCode] Canvas 2D context unavailable'));
@@ -53,10 +70,10 @@ export async function toDataURL(
             !props.backgroundColor || props.backgroundColor === 'transparent'
               ? '#ffffff'
               : props.backgroundColor;
-          ctx.fillRect(0, 0, size, size);
+          ctx.fillRect(0, 0, pixels, pixels);
         }
 
-        ctx.drawImage(img, 0, 0, size, size);
+        ctx.drawImage(img, 0, 0, pixels, pixels);
         resolve(canvas.toDataURL(`image/${format}`, quality));
       } catch (err) {
         reject(err);

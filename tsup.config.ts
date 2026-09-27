@@ -6,7 +6,7 @@ const shared = {
   external: ['react', 'react-dom'],
   target: 'es2020',
   minify: true,
-  sourcemap: true,
+  sourcemap: false,
 };
 
 // Two configs so only the root entry gets the banner. dist is cleaned by the

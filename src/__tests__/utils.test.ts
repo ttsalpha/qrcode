@@ -48,6 +48,56 @@ describe('toSVGString', () => {
     const rects = result.match(/<rect/g) ?? [];
     expect(rects.length).toBe(0);
   });
+
+  // React escapes attribute values for <QRCode>; this builder writes the string
+  // itself, so colors have to be escaped here or they break out of fill="...".
+  describe('escapes caller-supplied colors', () => {
+    const cases: Array<[string, Record<string, unknown>]> = [
+      ['dotColor', { dotColor: '#000" onload="alert(1)' }],
+      [
+        'backgroundColor',
+        { backgroundColor: '#fff"/><script>x()</script><rect fill="#fff' },
+      ],
+      ['corner square color', { corner: { square: { color: 'a"/><b c="' } } }],
+      ['corner dot color', { corner: { dot: { color: 'a"/><b c="' } } }],
+    ];
+
+    for (const [label, props] of cases) {
+      it(label, () => {
+        const result = toSVGString({ value: 'TEST', ...props });
+        expect(result).not.toContain('<script>');
+        expect(result).not.toContain('<b c=');
+        // no attribute may be introduced by the injected value
+        expect(/[ "]onload="/.test(result)).toBe(false);
+        expect(result).toContain('&quot;');
+      });
+    }
+  });
+
+  it('is deterministic: identical props produce identical output', () => {
+    const props = {
+      value: 'https://example.com',
+      logo: { src: 'data:image/png;base64,iVBORw0KGgo=' },
+    };
+    expect(toSVGString(props)).toBe(toSVGString(props));
+  });
+
+  it('gives different ids to different values', () => {
+    const idOf = (svg: string) => svg.match(/aria-labelledby="([^"]+)"/)?.[1];
+    expect(idOf(toSVGString({ value: 'A' }))).not.toBe(
+      idOf(toSVGString({ value: 'B' })),
+    );
+  });
+
+  it('appends px to numeric style values, matching React', () => {
+    const result = toSVGString({
+      value: 'TEST',
+      style: { borderRadius: 8, opacity: 0.5, margin: 0 },
+    });
+    expect(result).toContain('border-radius:8px');
+    expect(result).toContain('opacity:0.5');
+    expect(result).toContain('margin:0');
+  });
 });
 
 // --- toDataURL ---
@@ -192,5 +242,34 @@ describe('toDataURL', () => {
     vi.stubGlobal('Image', makeMockImage(false));
     await expect(toDataURL({ value: 'TEST' })).rejects.toThrow();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+  });
+
+  // A cross-origin logo taints the canvas and canvas.toDataURL then throws
+  // SecurityError. The throw happens inside img.onload, outside the promise
+  // executor, so without a catch the promise would stay pending forever.
+  describe('when canvas.toDataURL throws (tainted canvas)', () => {
+    beforeEach(() => {
+      const taintedCanvas = makeMockCanvas(mockCtx, '');
+      taintedCanvas.toDataURL = vi.fn(() => {
+        throw new Error('SecurityError: tainted canvas');
+      });
+      vi.spyOn(document, 'createElement').mockImplementation(
+        (tag: string): HTMLElement => {
+          if (tag === 'canvas') return taintedCanvas as unknown as HTMLElement;
+          return originalCreateElement(tag);
+        },
+      );
+    });
+
+    it('rejects instead of hanging', { timeout: 1000 }, async () => {
+      await expect(toDataURL({ value: 'TEST' })).rejects.toThrow(
+        'SecurityError',
+      );
+    });
+
+    it('still revokes the blob URL', { timeout: 1000 }, async () => {
+      await expect(toDataURL({ value: 'TEST' })).rejects.toThrow();
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock');
+    });
   });
 });

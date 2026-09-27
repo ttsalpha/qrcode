@@ -197,6 +197,8 @@ link.click();
 
 > **Note:** JPEG has no alpha channel. When `backgroundColor` is `'transparent'`, the background is automatically filled with white.
 
+> **Logos:** the SVG is rasterised by loading it as an image, and a document loaded that way is not allowed to fetch external resources. A `logo.src` pointing at an `http(s)` URL is therefore dropped from the output, even though it renders fine in `<QRCode>`. Pass a `data:image/...` URI to `toDataURL` if the logo must appear in the exported image.
+
 ## Technical Details
 
 - QR versions 1–40, auto-selects the minimum version that fits the data

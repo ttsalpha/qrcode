@@ -1,6 +1,6 @@
 'use client';
 
-declare const process: { env: { NODE_ENV: string } };
+declare const process: { env: { NODE_ENV?: string } } | undefined;
 
 import * as React from 'react';
 import type { QRCodeProps, CornerDotStyle, CornerSquareStyle } from '../types';
@@ -13,6 +13,12 @@ import {
   resolveLogoEcl,
 } from '../renderer/logoSafety';
 import { QRCorner } from './QRCorner';
+
+// `process` is absent in plain browser ESM and some edge runtimes, and tsup does
+// not substitute it. Bundlers that do substitute it still fold this to false and
+// drop the warning below.
+const isDev =
+  typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
 
 // Avoid useLayoutEffect SSR warning while still running synchronously on the client
 const useIsomorphicLayoutEffect =
@@ -42,7 +48,7 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
     userSize,
     userECL,
   );
-  if (process.env.NODE_ENV !== 'production' && clamped) {
+  if (isDev && clamped) {
     console.warn(
       `[QRCode] logo.size=${userSize} needs ECL ≥ "${pickECLForArea(targetArea)}"; ECL "${userECL}" set, logo clamped.`,
     );

@@ -34,28 +34,35 @@ export async function toDataURL(
     const img = new Image();
 
     img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
+      // Anything thrown here escapes the handler rather than rejecting, which
+      // would leave the promise pending forever. canvas.toDataURL in particular
+      // throws SecurityError once a cross-origin logo has tainted the canvas.
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('[QRCode] Canvas 2D context unavailable'));
+          return;
+        }
+
+        // JPEG has no alpha channel — fill background before drawing
+        if (format === 'jpeg') {
+          ctx.fillStyle =
+            !props.backgroundColor || props.backgroundColor === 'transparent'
+              ? '#ffffff'
+              : props.backgroundColor;
+          ctx.fillRect(0, 0, size, size);
+        }
+
+        ctx.drawImage(img, 0, 0, size, size);
+        resolve(canvas.toDataURL(`image/${format}`, quality));
+      } catch (err) {
+        reject(err);
+      } finally {
         URL.revokeObjectURL(url);
-        reject(new Error('[QRCode] Canvas 2D context unavailable'));
-        return;
       }
-
-      // JPEG has no alpha channel — fill background before drawing
-      if (format === 'jpeg') {
-        ctx.fillStyle =
-          !props.backgroundColor || props.backgroundColor === 'transparent'
-            ? '#ffffff'
-            : props.backgroundColor;
-        ctx.fillRect(0, 0, size, size);
-      }
-
-      ctx.drawImage(img, 0, 0, size, size);
-      URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL(`image/${format}`, quality));
     };
 
     img.onerror = () => {

@@ -5,7 +5,19 @@ import { cornerSquarePath, cornerDotPath } from './utils';
 import { buildDataModulesPath, r2 } from './paths';
 import { isSafeSrc, resolveLogoEcl } from './logoSafety';
 
-let _idCounter = 0;
+// FNV-1a, two seeds combined, so identical props always produce identical ids.
+// A counter would make toSVGString non-deterministic and defeat content hashing
+// and HTTP caching of generated SVGs.
+function hashId(key: string): string {
+  let a = 0x811c9dc5;
+  let b = 0x01000193;
+  for (let i = 0; i < key.length; i++) {
+    const c = key.charCodeAt(i);
+    a = Math.imul(a ^ c, 0x01000193);
+    b = Math.imul(b ^ c, 0x85ebca6b);
+  }
+  return (a >>> 0).toString(36) + (b >>> 0).toString(36);
+}
 
 function esc(s: string): string {
   return s
@@ -15,24 +27,45 @@ function esc(s: string): string {
     .replace(/>/g, '&gt;');
 }
 
+// Properties React keeps unitless. Everything else gets `px` appended to a bare
+// non-zero number, so toSVGString and <QRCode> emit the same declaration.
+const UNITLESS_PROPS = new Set([
+  'opacity',
+  'zIndex',
+  'flex',
+  'flexGrow',
+  'flexShrink',
+  'fontWeight',
+  'lineHeight',
+  'order',
+  'zoom',
+]);
+
 function cssToString(style: CSSProperties): string {
   return Object.entries(style)
     .filter(([, v]) => v != null)
-    .map(
-      ([k, v]) =>
-        `${k.replace(/([A-Z])/g, (c) => `-${c.toLowerCase()}`)}:${v as string}`,
-    )
+    .map(([k, v]) => {
+      const needsPx =
+        typeof v === 'number' &&
+        v !== 0 &&
+        !UNITLESS_PROPS.has(k) &&
+        !k.startsWith('--');
+      const value = needsPx ? `${v}px` : String(v);
+      return `${k.replace(/([A-Z])/g, (c) => `-${c.toLowerCase()}`)}:${value}`;
+    })
     .join(';');
 }
 
+// Both colors must already be escaped by the caller; they go straight into
+// attribute position.
 function renderCorner(
   x: number,
   y: number,
   moduleSize: number,
   squareStyle: CornerSquareStyle,
-  squareColor: string,
+  squareColorAttr: string,
   dotStyle: CornerDotStyle,
-  dotColor: string,
+  dotColorAttr: string,
 ): string {
   const outerSize = r2(7 * moduleSize);
   const innerSize = r2(3 * moduleSize);
@@ -48,8 +81,8 @@ function renderCorner(
 
   return (
     `<g>` +
-    `<path d="${sqPath}" fill="${squareColor}" fill-rule="evenodd"/>` +
-    `<path d="${dotP}" fill="${dotColor}"/>` +
+    `<path d="${sqPath}" fill="${squareColorAttr}" fill-rule="evenodd"/>` +
+    `<path d="${dotP}" fill="${dotColorAttr}"/>` +
     `</g>`
   );
 }
@@ -104,7 +137,36 @@ export function buildSVGString(props: QRCodeProps): string {
     corner?.dot?.style ?? defaultCornerDotStyle;
   const cornerDotColor = corner?.dot?.color ?? dotColor;
 
-  const uid = `qr${_idCounter++}`;
+  // Colors land in attribute position, so they must be escaped like every other
+  // caller-supplied string here. React escapes these for <QRCode>; this builder
+  // has to do it itself.
+  const dotColorAttr = esc(dotColor);
+  const backgroundColorAttr = esc(backgroundColor);
+  const squareColorAttr = esc(squareColor);
+  const cornerDotColorAttr = esc(cornerDotColor);
+
+  const uid = `qr${hashId(
+    [
+      value,
+      size,
+      margin,
+      dotStyle,
+      dotColor,
+      backgroundColor,
+      squareStyle,
+      squareColor,
+      cornerDotStyleVal,
+      cornerDotColor,
+      ecLevel,
+      requestedVersion ?? '',
+      logoSrc ?? '',
+      logo?.size ?? '',
+      logo?.margin ?? '',
+      logo?.hideDots ?? '',
+      className ?? '',
+      ariaLabel ?? '',
+    ].join('\u0000'),
+  )}`;
   const titleId = `${uid}t`;
   const maskId = `${uid}m`;
 
@@ -152,7 +214,7 @@ export function buildSVGString(props: QRCodeProps): string {
   svg += `<title id="${titleId}">${esc(ariaLabel ?? `QR code: ${value}`)}</title>`;
 
   if (backgroundColor !== 'transparent') {
-    svg += `<rect width="${svgSize}" height="${svgSize}" fill="${backgroundColor}"/>`;
+    svg += `<rect width="${svgSize}" height="${svgSize}" fill="${backgroundColorAttr}"/>`;
   }
 
   if (applyLogoMask) {
@@ -166,7 +228,7 @@ export function buildSVGString(props: QRCodeProps): string {
   svg += `<g${applyLogoMask ? ` mask="url(#${maskId})"` : ''}>`;
 
   if (dataPath) {
-    svg += `<path d="${dataPath}" fill="${dotColor}"/>`;
+    svg += `<path d="${dataPath}" fill="${dotColorAttr}"/>`;
   }
 
   for (const [row, col] of cornerPositions) {
@@ -177,9 +239,9 @@ export function buildSVGString(props: QRCodeProps): string {
       cy,
       moduleSize,
       squareStyle,
-      squareColor,
+      squareColorAttr,
       cornerDotStyleVal,
-      cornerDotColor,
+      cornerDotColorAttr,
     );
   }
 

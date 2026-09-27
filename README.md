@@ -67,7 +67,7 @@ export default function App() {
   logo={{
     src: '/logo.png',
     size: 0.5,
-    margin: 4,
+    margin: 1,
   }}
 />
 ```
@@ -89,6 +89,9 @@ size. The error correction level is raised automatically to match, so
 />
 ```
 
+Only `<QRCode>` accepts `element`. [`toSVGString`](#tosvgstringprops) renders
+without React, so it takes `logo.src` instead.
+
 ## Props
 
 ### `QRCodeProps`
@@ -107,11 +110,20 @@ size. The error correction level is raised automatically to match, so
 | `className`       | `string`        | —         | CSS class on the `<svg>` element                 |
 | `style`           | `CSSProperties` | —         | Inline style on the `<svg>` element              |
 | `ariaLabel`       | `string`        | —         | Accessible label, defaults to `QR code: {value}` |
+| `idPrefix`        | `string`        | `qr`      | Prefix for generated ids. `toSVGString` only     |
+
+`idPrefix` is reduced to `A-Z a-z 0-9 _ -` before use, since it lands in
+attribute position and inside `url(#…)`; two prefixes that reduce to the same
+text still produce different ids.
+
+Anything else an `<svg>` accepts (`id`, `onClick`, `data-*`, …) is passed
+through to the root element, and `ref` gives you the `SVGSVGElement`.
 
 An empty `value`, or one too long to fit any version, throws a `RangeError`
 rather than rendering nothing. The ceiling is roughly 2,950 bytes at error
-correction level `L` and 1,270 at `H`, so catch it when the value comes from
-user input.
+correction level `L` and 1,270 at `H`. A throw during render unmounts the React
+tree above it, so wrap the component in an error boundary when the value comes
+from user input, or validate the length before passing it in.
 
 ### `DotStyle`
 
@@ -144,6 +156,10 @@ When `corner.dot.style` is omitted it follows the square style:
 | `circle`              | `circle`                   |
 | anything else         | `square`                   |
 
+> `corner.square.style: 'circle'` replaces the square finder ring with a round
+> one. Scanners look for the square 1:1:3:1:1 ratio, so this trades some
+> scanning reliability for the look; test it at the size you will print.
+
 ### `LogoOptions`
 
 ```ts
@@ -151,7 +167,8 @@ interface LogoOptions {
   src?: string; // https, relative path, blob:, or data:image/... URI
   element?: ReactNode; // takes priority over src if both are given
   size?: number; // 0–1, relative to the largest safe logo. default: 0.4
-  margin?: number; // gap between logo and cleared area. larger means smaller logo
+  aspectRatio?: number; // width / height. default: measured from src, else 1
+  margin?: number; // gap between logo and cleared area, in modules
   hideDots?: boolean; // clear QR dots behind the logo. default: true
 }
 ```
@@ -159,21 +176,30 @@ interface LogoOptions {
 The error correction level is picked from `logo.size`, so a bigger logo
 automatically buys the redundancy it needs:
 
-| `logo.size` | Error correction | Logo width, at most |
-| ----------- | ---------------- | ------------------- |
-| `≤ 0.25`    | `L`              | 15% of the QR       |
-| `≤ 0.44`    | `M`              | 20%                 |
-| `≤ 0.69`    | `Q`              | 25%                 |
-| `≤ 1.00`    | `H`              | 30%                 |
+| `logo.size` | Error correction | Cleared width, at most |
+| ----------- | ---------------- | ---------------------- |
+| `≤ 0.25`    | `L`              | 15% of the symbol      |
+| `≤ 0.44`    | `M`              | 20%                    |
+| `≤ 0.69`    | `Q`              | 25%                    |
+| `≤ 1.00`    | `H`              | 30%                    |
+
+The percentages are of the symbol, not of the rendered image: `margin` adds
+quiet zone, which carries no error correction, so it never buys a larger logo.
 
 Setting `qr.errorCorrectionLevel` yourself overrides this, and the logo is then
-clamped to whatever that level can safely carry (with a console warning in
-development). Aspect ratio is detected from `src` or `element`; for a landscape
-logo the height shrinks proportionally so it is never wider than the QR itself.
+clamped to whatever that level can safely carry (with a console warning outside
+production builds). For a landscape logo the height shrinks proportionally so it
+is never wider than the QR itself.
 
-`size` snaps to whole modules so the cleared area never cuts a dot in half. It
-lands on the nearest size that fits the grid and never on a larger one, which is
-coarse enough to notice on a small symbol.
+`<QRCode>` measures the aspect ratio from `src` or `element` after it loads. Set
+`logo.aspectRatio` to skip the measurement and the reflow that follows, and to
+get the same layout out of `toSVGString`, which cannot load the image and
+otherwise assumes a square.
+
+`size` snaps to whole modules so the cleared area never cuts a dot in half. The
+cleared area rounds up to the next odd module count, and the logo is then
+scaled down to fit inside it, so the logo itself never grows beyond what was
+asked for. On a small symbol the step between sizes is coarse enough to notice.
 
 > **Security.** `javascript:` and non-image `data:` URIs in `src` are silently
 > rejected. Never pass unsanitised user input as `element`: it is rendered
@@ -216,6 +242,9 @@ const svg = toSVGString({ value: 'https://example.com', size: 512 });
 // "<svg role="img" ...>...</svg>"
 ```
 
+`logo.element` is a React node and has no meaning outside a React render, so
+passing it here throws. Use `logo.src` for a string, or render `<QRCode>`.
+
 ### `toDataURL(props, options?)`
 
 Renders the QR code to a `data:` URL via Canvas. Browser only, since it needs
@@ -223,7 +252,6 @@ the Canvas API.
 
 ```ts
 import { toDataURL } from '@ttsalpha/qrcode';
-// or '@ttsalpha/qrcode/server' outside a client component
 
 // PNG (default)
 const png = await toDataURL({ value: 'https://example.com', size: 512 });
@@ -243,10 +271,11 @@ link.click();
 
 #### `ToDataURLOptions`
 
-| Option    | Type              | Default         | Description                   |
-| --------- | ----------------- | --------------- | ----------------------------- |
-| `format`  | `'png' \| 'jpeg'` | `png`           | Output image format           |
-| `quality` | `number` (0–1)    | browser default | JPEG quality. Ignored for PNG |
+| Option    | Type              | Default         | Description                      |
+| --------- | ----------------- | --------------- | -------------------------------- |
+| `format`  | `'png' \| 'jpeg'` | `png`           | Output image format              |
+| `quality` | `number` (0–1)    | browser default | JPEG quality. Ignored for PNG    |
+| `scale`   | `number`          | `1`             | Raster size multiplier of `size` |
 
 Two things behave differently here than in `<QRCode>`:
 
@@ -267,7 +296,8 @@ Two things behave differently here than in `<QRCode>`:
 - All function patterns: finder, separator, timing, alignment, dark module,
   format info, version info
 - Generated matrices are memoized in a 16-entry LRU, so repeated renders of the
-  same value skip encoding entirely
+  same value skip encoding entirely, and the SVG path is cached alongside the
+  matrix it was built from
 
 ### Encoding
 

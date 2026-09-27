@@ -1,7 +1,14 @@
 import type { CornerDotStyle, CornerSquareStyle } from '../types';
+import { r2 } from './paths';
+
+// Every path below rounds at the point it emits a number. Corner geometry is
+// derived by dividing the finder width by 7, so the raw values carry binary
+// float noise (7 * moduleSize / 7 is not moduleSize). Rounding here covers both
+// renderers, including <QRCorner>, which passes unrounded pixel sizes.
 
 export function squarePath(x: number, y: number, s: number): string {
-  return `M${x},${y}h${s}v${s}h${-s}z`;
+  const side = r2(s);
+  return `M${r2(x)},${r2(y)}h${side}v${side}h${-side}z`;
 }
 
 // Builds a rounded rectangle path using quadratic bezier curves for each corner.
@@ -13,16 +20,20 @@ function roundedRect(
   h: number,
   r: number,
 ): string {
-  const cr = Math.min(r, w / 2, h / 2);
+  // Round the radius first, then derive the straight runs from it, so opposite
+  // sides are exact negations of each other and the path closes.
+  const cr = r2(Math.min(r, w / 2, h / 2));
+  const hRun = r2(w - 2 * cr);
+  const vRun = r2(h - 2 * cr);
   return (
-    `M${x + cr},${y}` +
-    `h${w - 2 * cr}` +
+    `M${r2(x + cr)},${r2(y)}` +
+    `h${hRun}` +
     `q${cr},0 ${cr},${cr}` +
-    `v${h - 2 * cr}` +
+    `v${vRun}` +
     `q0,${cr} ${-cr},${cr}` +
-    `h${-(w - 2 * cr)}` +
+    `h${-hRun}` +
     `q${-cr},0 ${-cr},${-cr}` +
-    `v${-(h - 2 * cr)}` +
+    `v${-vRun}` +
     `q0,${-cr} ${cr},${-cr}z`
   );
 }
@@ -35,13 +46,13 @@ export function cornerDotPath(
   style: CornerDotStyle,
 ): string {
   if (style === 'circle') {
-    const cx = x + size / 2;
-    const cy = y + size / 2;
-    const r = size / 2;
+    // The leftmost point is cx - r, which is exactly x.
+    const r = r2(size / 2);
+    const d = r2(r * 2);
     return (
-      `M${cx - r},${cy}` +
-      `a${r},${r} 0 1,0 ${r * 2},0` +
-      `a${r},${r} 0 1,0 ${-r * 2},0z`
+      `M${r2(x)},${r2(y + size / 2)}` +
+      `a${r},${r} 0 1,0 ${d},0` +
+      `a${r},${r} 0 1,0 ${-d},0z`
     );
   }
   if (style === 'rounded') {
@@ -85,12 +96,13 @@ export function cornerSquarePath(
 
   if (style === 'circle') {
     const cx = x + size / 2;
-    const cy = y + size / 2;
-    const ro = size / 2;
-    const ri = inner / 2;
-    const circlePath = (r: number) =>
-      `M${cx - r},${cy}a${r},${r} 0 1,0 ${r * 2},0a${r},${r} 0 1,0 ${-r * 2},0z`;
-    return `${circlePath(ro)} ${circlePath(ri)}`;
+    const cy = r2(y + size / 2);
+    const circlePath = (radius: number) => {
+      const r = r2(radius);
+      const d = r2(r * 2);
+      return `M${r2(cx - r)},${cy}a${r},${r} 0 1,0 ${d},0a${r},${r} 0 1,0 ${-d},0z`;
+    };
+    return `${circlePath(size / 2)} ${circlePath(inner / 2)}`;
   }
 
   // extra-rounded: both outer and inner cutout get rounded corners

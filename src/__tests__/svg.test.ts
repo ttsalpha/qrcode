@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { getFinderPatterns } from '../renderer/svg';
 import { buildDataModulesPath } from '../renderer/paths';
+import { cornerSquarePath, cornerDotPath } from '../renderer/utils';
 import { generateQRMatrix } from '../core/matrix';
 
 // Reference enumeration of the finder-pattern modules (7×7 finder + 1-module
@@ -216,6 +217,59 @@ describe('getFinderPatternModules', () => {
       for (let c = 0; c <= 6; c++) {
         expect(modules.has(r * size + c)).toBe(true);
       }
+    }
+  });
+});
+
+describe('corner paths', () => {
+  // Corner geometry divides the finder width by 7, so raw arithmetic produces
+  // values like 44.150000000000006 that bloat every path string.
+  const decimalsOf = (path: string) =>
+    (path.match(/-?\d+\.\d+/g) ?? []).map((n) => n.split('.')[1].length);
+
+  const SIZES = [256 / 29, 256 / 33, 100 / 7, 333 / 45];
+
+  for (const style of [
+    'square',
+    'rounded',
+    'extra-rounded',
+    'circle',
+  ] as const) {
+    it(`cornerSquarePath "${style}" rounds to at most 2 decimals`, () => {
+      for (const moduleSize of SIZES) {
+        const path = cornerSquarePath(
+          moduleSize,
+          moduleSize,
+          7 * moduleSize,
+          style,
+        );
+        for (const d of decimalsOf(path)) expect(d).toBeLessThanOrEqual(2);
+      }
+    });
+  }
+
+  for (const style of ['square', 'rounded', 'circle'] as const) {
+    it(`cornerDotPath "${style}" rounds to at most 2 decimals`, () => {
+      for (const moduleSize of SIZES) {
+        const path = cornerDotPath(
+          moduleSize,
+          moduleSize,
+          3 * moduleSize,
+          style,
+        );
+        for (const d of decimalsOf(path)) expect(d).toBeLessThanOrEqual(2);
+      }
+    });
+  }
+
+  it('closes the rounded rect: opposite runs cancel exactly', () => {
+    for (const moduleSize of SIZES) {
+      const path = cornerSquarePath(0, 0, 7 * moduleSize, 'rounded');
+      const h = path.match(/h(-?[\d.]+)/g)!.map((t) => Number(t.slice(1)));
+      const v = path.match(/v(-?[\d.]+)/g)!.map((t) => Number(t.slice(1)));
+      // the rounded outer subpath contributes one +h/-h and one +v/-v pair
+      expect(h[0] + h[1]).toBe(0);
+      expect(v[0] + v[1]).toBe(0);
     }
   });
 });

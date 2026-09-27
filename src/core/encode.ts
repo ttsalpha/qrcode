@@ -143,11 +143,21 @@ export function encodeQR(
   ecLevel: ErrorCorrectionLevel = 'M',
   requestedVersion?: number,
 ): EncodeResult {
+  if (typeof data !== 'string') {
+    throw new TypeError(`data must be a string, got ${typeof data}`);
+  }
   if (data.length === 0) {
     throw new RangeError('data must not be empty');
   }
 
+  // typeof rather than a check against undefined: a plain object inherits
+  // Object.prototype, so "constructor" and friends index to a function.
   const ecIdx = EC_LEVEL_INDEX[ecLevel];
+  if (typeof ecIdx !== 'number') {
+    throw new RangeError(
+      `errorCorrectionLevel must be one of "L", "M", "Q", "H", got ${JSON.stringify(ecLevel)}`,
+    );
+  }
   // The scan and per-character tables are shared across the version groups.
   const plan = planSegments(data);
   const segmentsFor = (version: number): Segment[] => plan.forVersion(version);
@@ -180,6 +190,9 @@ export function encodeQR(
     // three times at most rather than once per version.
     let found: { version: number; segments: Segment[] } | undefined;
     for (const [lo, hi] of VERSION_GROUPS) {
+      // The search is the expensive step, so skip the group outright when even
+      // an unattainably cheap encoding would not fit its largest version.
+      if (plan.minDataBytes(lo) > getDataCodewordsCapacity(hi, ecIdx)) continue;
       const groupSegments = segmentsFor(lo);
       const totalBytes = segmentsDataBytes(groupSegments, lo);
       for (let v = lo; v <= hi; v++) {

@@ -363,7 +363,11 @@ export function computeQRMatrix(
   // Place data bits
   placeDataBits(matrix, functionModules, size, codewords);
 
-  // Select best mask and apply it in-place on the flat buffer
+  // The format modules are still light here, since the bits depend on the mask
+  // being chosen. Scoring each candidate's real format bits instead is also a
+  // conforming reading of the spec, and measurably changes the chosen mask on
+  // about half of all symbols, so leave this alone without a reason to prefer
+  // one over the other.
   const bestMask = selectAndApplyBestMaskFlat(matrix, functionModules, size);
 
   // Write format information in-place on the already-masked matrix.

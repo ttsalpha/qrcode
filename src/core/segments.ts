@@ -81,7 +81,9 @@ export interface Segment {
 }
 
 // Total data codewords a segment list needs at a given version, including each
-// segment's header and the 4-bit terminator, rounded up to a byte.
+// segment's header, rounded up to a byte. The terminator is truncated when the
+// data reaches capacity (ISO 18004 §7.4.9), so charging its 4 bits here would
+// reject payloads that fit exactly.
 export function segmentsDataBytes(
   segments: readonly Segment[],
   version: number,
@@ -93,7 +95,7 @@ export function segmentsDataBytes(
       charCountBits(seg.mode, version) +
       payloadBits(seg.mode, seg.charCount);
   }
-  return Math.ceil((bits + 4) / 8);
+  return Math.ceil(bits / 8);
 }
 
 // The whole string as one segment, for inputs where a single mode is provably
@@ -162,10 +164,15 @@ function scan(data: string): Scan {
       }
     } else if (c < 0x800) {
       totalBytes += 2;
-    } else if (c >= 0xd800 && c <= 0xdbff && i + 1 < data.length) {
+    } else if (
+      c >= 0xd800 &&
+      c <= 0xdbff &&
+      (data.charCodeAt(i + 1) & 0xfc00) === 0xdc00
+    ) {
       totalBytes += 4; // surrogate pair
       i++;
     } else {
+      // Includes unpaired surrogates, which TextEncoder emits as U+FFFD.
       totalBytes += 3;
     }
     count++;
@@ -204,10 +211,34 @@ function buildTables(data: string, count: number): CharTables {
  */
 export interface SegmentPlan {
   forVersion(version: number): Segment[];
+  /**
+   * Lower bound on the data codewords any segmentation of this string needs at
+   * a version. Lets version selection rule out a group before running the
+   * search, which is the expensive half.
+   */
+  minDataBytes(version: number): number;
 }
 
 export function planSegments(data: string): SegmentPlan {
   const { count, totalBytes, digits, alnums } = scan(data);
+
+  // Every character at the densest rate its own class allows, ignoring the
+  // mode switches a real segmentation has to pay for. Alphanumeric characters
+  // are ASCII by definition, so the remaining bytes are the byte-only ones.
+  const floorCost6 =
+    digits * COST_NUMERIC +
+    (alnums - digits) * COST_ALNUM +
+    (totalBytes - alnums) * COST_BYTE_PER_UTF8_BYTE;
+  const minDataBytes = (version: number): number => {
+    const header =
+      4 +
+      Math.min(
+        charCountBits('numeric', version),
+        charCountBits('alphanumeric', version),
+        charCountBits('byte', version),
+      );
+    return Math.ceil((floorCost6 / 6 + header) / 8);
+  };
 
   // Uniform inputs have a provably optimal single segment, so skip the search:
   // all digits is already the densest mode; all alphanumeric with no digit has
@@ -222,7 +253,7 @@ export function planSegments(data: string): SegmentPlan {
   }
   if (uniform) {
     const only = [uniform];
-    return { forVersion: () => only };
+    return { forVersion: () => only, minDataBytes };
   }
 
   let tables: CharTables | undefined;
@@ -231,6 +262,7 @@ export function planSegments(data: string): SegmentPlan {
       tables ??= buildTables(data, count);
       return search(data, version, count, tables);
     },
+    minDataBytes,
   };
 }
 
@@ -278,8 +310,8 @@ function search(
       charModes[base + NUMERIC] = NUMERIC;
     }
 
-    // Or start a new segment here, paying a header. A segment boundary lands on
-    // a byte boundary, so the running cost rounds up to a whole bit first.
+    // Or start a new segment here, paying a header. A closed segment occupies a
+    // whole number of bits, so the running cost rounds up to a whole bit first.
     for (let j = 0; j < 3; j++) {
       for (let k = 0; k < 3; k++) {
         if (charModes[base + k] === -1) continue;

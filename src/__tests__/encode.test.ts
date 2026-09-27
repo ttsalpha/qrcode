@@ -66,23 +66,23 @@ describe('encodeQR', () => {
     expect(() => encodeQR('A'.repeat(10000), 'H')).toThrow(RangeError);
   });
 
-  // Expected versions captured from the brute-force selection loop before it
-  // was replaced with arithmetic bit counting, pinning identical behavior at
-  // capacity edges and version-group boundaries (char count width changes).
+  // Boundaries follow the ISO 18004 Table 7 capacities asserted in
+  // capacity.test.ts: the last count that fits a version, then the first that
+  // does not.
   it('auto-selects versions at capacity boundaries (alphanumeric)', () => {
     expect(encodeQR('A'.repeat(20), 'M').version).toBe(1);
     expect(encodeQR('A'.repeat(21), 'M').version).toBe(2);
-    expect(encodeQR('A'.repeat(46), 'L').version).toBe(2);
-    expect(encodeQR('A'.repeat(47), 'L').version).toBe(3);
+    expect(encodeQR('A'.repeat(47), 'L').version).toBe(2);
+    expect(encodeQR('A'.repeat(48), 'L').version).toBe(3);
     expect(encodeQR('A'.repeat(20), 'H').version).toBe(2);
     expect(encodeQR('A'.repeat(21), 'H').version).toBe(3);
   });
 
   it('auto-selects versions at capacity boundaries (numeric)', () => {
-    expect(encodeQR('1'.repeat(33), 'M').version).toBe(1);
-    expect(encodeQR('1'.repeat(34), 'M').version).toBe(2);
-    expect(encodeQR('1'.repeat(33), 'H').version).toBe(2);
-    expect(encodeQR('1'.repeat(34), 'H').version).toBe(3);
+    expect(encodeQR('1'.repeat(34), 'M').version).toBe(1);
+    expect(encodeQR('1'.repeat(35), 'M').version).toBe(2);
+    expect(encodeQR('1'.repeat(34), 'H').version).toBe(2);
+    expect(encodeQR('1'.repeat(35), 'H').version).toBe(3);
   });
 
   it('auto-selects versions at capacity boundaries (byte)', () => {
@@ -94,8 +94,8 @@ describe('encodeQR', () => {
 
   it('auto-selects versions across the v9/v10 group boundary', () => {
     // Character count indicator widens at v10, so the boundary must stay exact
-    expect(encodeQR('A'.repeat(177), 'M').version).toBe(7);
-    expect(encodeQR('A'.repeat(178), 'M').version).toBe(8);
+    expect(encodeQR('A'.repeat(178), 'M').version).toBe(7);
+    expect(encodeQR('A'.repeat(179), 'M').version).toBe(8);
     expect(encodeQR('A'.repeat(174), 'H').version).toBe(10);
     expect(encodeQR('A'.repeat(175), 'H').version).toBe(11);
   });
@@ -161,4 +161,28 @@ describe('generateQRMatrix', () => {
       expect(matrix[i] === 0 || matrix[i] === 1).toBe(true);
     }
   });
+});
+
+describe('input validation', () => {
+  // A non-string used to sail through: scan() found no characters, so the
+  // encoder produced a scannable symbol carrying the empty string.
+  for (const value of [42, true, {}, [], 0]) {
+    it(`rejects ${JSON.stringify(value)} instead of encoding nothing`, () => {
+      expect(() => encodeQR(value as unknown as string)).toThrow(TypeError);
+    });
+  }
+
+  it('rejects an unknown error correction level', () => {
+    expect(() => encodeQR('TEST', 'Z' as never)).toThrow(RangeError);
+  });
+
+  // The level table is a plain object, so these index to something inherited
+  // from Object.prototype rather than to undefined.
+  for (const ecl of ['constructor', 'toString', 'valueOf', '__proto__']) {
+    it(`rejects the inherited key ${JSON.stringify(ecl)}`, () => {
+      expect(() => encodeQR('TEST', ecl as never)).toThrow(
+        /errorCorrectionLevel must be one of/,
+      );
+    });
+  }
 });

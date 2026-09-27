@@ -1,2 +1,7 @@
 allowBuilds:
   esbuild: true
+
+# tsup pins an esbuild with a Windows dev-server advisory it never uses.
+# Nothing here runs an esbuild dev server; this just clears the alert.
+overrides:
+  esbuild: '>=0.28.1'

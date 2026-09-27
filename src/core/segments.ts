@@ -185,7 +185,7 @@ function buildTables(data: string, count: number): CharTables {
   const cpBytes = new Uint8Array(count);
   const cpClass = new Uint8Array(count);
   let n = 0;
-  for (let i = 0; i < data.length; ) {
+  for (let i = 0; i < data.length;) {
     const cp = data.codePointAt(i) as number;
     cpIndex[n] = i;
     cpBytes[n] = utf8Length(cp);

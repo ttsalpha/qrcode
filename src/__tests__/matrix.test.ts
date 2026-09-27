@@ -121,3 +121,73 @@ describe('generateQRMatrix - cache', () => {
     expect(recomputed.matrix).toEqual(first.matrix);
   });
 });
+
+// Format information is written twice. Copy 1 wraps the top-left finder; copy 2
+// is split between row 8 on the right and column 8 at the bottom. Decoders read
+// copy 1 first and only fall back to copy 2 when copy 1 fails BCH correction,
+// so a malformed copy 2 still decodes under a scanner and shows up only as lost
+// redundancy. These assertions check the layout directly.
+describe('format information', () => {
+  // ISO 18004 §7.8.2: EC level indicator bits, and the 0x5412 XOR mask
+  const ECL_BITS = { L: 0b01, M: 0b00, Q: 0b11, H: 0b10 } as const;
+  const FORMAT_MASK = 0x5412;
+
+  // copy 1, bit 14 first
+  const COPY1: Array<[number, number]> = [
+    [8, 0],
+    [8, 1],
+    [8, 2],
+    [8, 3],
+    [8, 4],
+    [8, 5],
+    [8, 7],
+    [8, 8],
+    [7, 8],
+    [5, 8],
+    [4, 8],
+    [3, 8],
+    [2, 8],
+    [1, 8],
+    [0, 8],
+  ];
+
+  const readCopy1 = (m: Uint8Array, size: number): number =>
+    COPY1.reduce((acc, [r, c]) => (acc << 1) | m[r * size + c], 0);
+
+  // copy 2: bits 0..7 along row 8 from the right edge, bits 8..14 up column 8
+  const readCopy2 = (m: Uint8Array, size: number): number => {
+    let bits = 0;
+    for (let i = 0; i < 8; i++) bits |= m[8 * size + size - 1 - i] << i;
+    for (let i = 8; i < 15; i++) bits |= m[(size - 15 + i) * size + 8] << i;
+    return bits;
+  };
+
+  const ECLS = ['L', 'M', 'Q', 'H'] as const;
+
+  for (const ecl of ECLS) {
+    for (const version of [1, 2, 7, 26, 32, 40]) {
+      it(`v${version} ${ecl}: both copies carry the same bits`, () => {
+        const { matrix, size } = generateQRMatrix('TEST', ecl, version);
+        expect(readCopy2(matrix, size)).toBe(readCopy1(matrix, size));
+      });
+    }
+  }
+
+  it('encodes the requested EC level and a valid mask index', () => {
+    for (const ecl of ECLS) {
+      for (const version of [1, 7, 40]) {
+        const { matrix, size } = generateQRMatrix('TEST', ecl, version);
+        const unmasked = readCopy1(matrix, size) ^ FORMAT_MASK;
+        expect((unmasked >> 13) & 0b11).toBe(ECL_BITS[ecl]);
+        expect((unmasked >> 10) & 0b111).toBeLessThan(8);
+      }
+    }
+  });
+
+  it('always forces the dark module at (size - 8, 8)', () => {
+    for (const version of [1, 7, 40]) {
+      const { matrix, size } = generateQRMatrix('TEST', 'M', version);
+      expect(matrix[(size - 8) * size + 8]).toBe(1);
+    }
+  });
+});

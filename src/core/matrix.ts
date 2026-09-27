@@ -6,7 +6,8 @@ import { selectAndApplyBestMaskFlat } from './mask';
 // stored as a 40-row table: start at 6, end at 4·version+10 (= size−7), interior
 // points evenly spaced on an even step. Version 32's step (26) is the documented
 // exception to the even-spacing rule. Reproduces Annex E exactly for all 40.
-function alignmentCenters(version: number): number[] {
+// Exported for the frozen Annex E test; production callers use computeQRMatrix.
+export function alignmentCenters(version: number): number[] {
   if (version === 1) return [];
   const count = ((version / 7) | 0) + 2;
   const last = version * 4 + 10;
@@ -381,8 +382,9 @@ export function computeQRMatrix(
 // the format information (ISO 18004 §7.8.2).
 //
 // Copy 1 (15 cells, top-left area): bits 14..0 per FORMAT_INFO_POSITIONS.
-// Copy 2 (15 cells, split): bits 0..7 top-right, bits 7..14 bottom-left.
-// Note: bit 7 appears in both halves of copy 2 — this is per spec.
+// Copy 2 (15 cells, split): bits 0..7 along row 8 from the right edge inward,
+// then bits 8..14 up column 8 from row size-7 to row size-1. The two halves
+// partition the 15 bits; no bit appears twice.
 //
 // The dark module at (size-8, 8) is always forced dark regardless of format bits.
 function writeFormatInfo(
@@ -398,7 +400,7 @@ function writeFormatInfo(
     matrix[8 * size + size - 1 - i] = (formatBits >> i) & 1;
   }
   for (let i = 0; i < 7; i++) {
-    matrix[(size - 7 + i) * size + 8] = (formatBits >> (i + 7)) & 1;
+    matrix[(size - 7 + i) * size + 8] = (formatBits >> (i + 8)) & 1;
   }
   // dark module — always forced dark regardless of mask or format bits (ISO 18004 §7.8.2)
   matrix[(size - 8) * size + 8] = 1;

@@ -148,8 +148,9 @@ describe('buildDataModulesPath', () => {
     );
     const subpaths = path.split(/ (?=M)/);
     expect(subpaths).toHaveLength(2);
-    // Left module: flat corners on the neighbor side, rounded elsewhere
-    expect(subpaths[0]).toMatch(/q0,0 0,0/);
+    // Left module: two curves on the far side, nothing emitted for the two
+    // flat corners facing the neighbour.
+    expect(subpaths[0].match(/q/g)).toHaveLength(2);
     expect(subpaths[0]).toMatch(/4\.5/);
   });
 
@@ -170,8 +171,9 @@ describe('buildDataModulesPath', () => {
     );
     const subpaths = path.split(/ (?=M)/);
     expect(subpaths).toHaveLength(5);
-    // Row-major order → center module is the 3rd subpath; all 4 corners flat
-    expect(subpaths[2].match(/q0,0 0,0/g)).toHaveLength(4);
+    // Row-major order → center module is the 3rd subpath; all 4 corners flat,
+    // so it is a plain rectangle with no curve commands at all.
+    expect(subpaths[2]).not.toMatch(/q/);
   });
 });
 

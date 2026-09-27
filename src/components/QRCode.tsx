@@ -3,42 +3,55 @@
 declare const process: { env: { NODE_ENV?: string } } | undefined;
 
 import * as React from 'react';
-import type { QRCodeProps, CornerDotStyle, CornerSquareStyle } from '../types';
+import type {
+  QRCodeComponentProps,
+  CornerDotStyle,
+  CornerSquareStyle,
+} from '../types';
 import { generateQRMatrix } from '../core/matrix';
 import { getFinderPatterns } from '../renderer/svg';
-import { buildDataModulesPath } from '../renderer/paths';
+import { buildDataModulesPath, r2 } from '../renderer/paths';
+import { resolveGeometry, xmlSafeText } from '../renderer/utils';
 import {
   pickECLForArea,
   isSafeSrc,
   resolveLogoEcl,
   layoutLogo,
+  logoAspectRatio,
 } from '../renderer/logoSafety';
 import { QRCorner } from './QRCorner';
 
-// `process` is absent in plain browser ESM and some edge runtimes, and tsup does
-// not substitute it. Bundlers that do substitute it still fold this to false and
-// drop the warning below.
+// Warn unless a bundler proved this is production. `process` is absent in plain
+// browser ESM, and reading that as production silenced the warning in exactly
+// the setups most likely to trip it.
 const isDev =
-  typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
+  typeof process === 'undefined' || process.env?.NODE_ENV !== 'production';
 
 // Avoid useLayoutEffect SSR warning while still running synchronously on the client
 const useIsomorphicLayoutEffect =
   typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
 
-export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
-  value,
-  size = 256,
-  margin = 4,
-  dotStyle = 'square',
-  dotColor = '#000000',
-  backgroundColor = '#ffffff',
-  corner,
-  logo,
-  qr,
-  className,
-  style,
-  ariaLabel,
-}: QRCodeProps): React.JSX.Element {
+function QRCodeRoot(
+  {
+    value,
+    size = 256,
+    margin = 4,
+    dotStyle = 'square',
+    dotColor = '#000000',
+    backgroundColor = '#ffffff',
+    corner,
+    logo,
+    qr,
+    className,
+    style,
+    ariaLabel,
+    // Consumed, not spread: useId already makes these ids unique, so the prop
+    // only means anything to the string builder.
+    idPrefix: _idPrefix,
+    ...rest
+  }: QRCodeComponentProps,
+  ref: React.ForwardedRef<SVGSVGElement>,
+): React.JSX.Element {
   const requestedVersion = qr?.version;
   const userECL = qr?.errorCorrectionLevel;
   const userSize = logo?.size;
@@ -55,6 +68,11 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
     );
   }
 
+  // An explicit ratio is authoritative, so the measuring work is skipped
+  // entirely and the logo never reflows after the first paint.
+  const explicitAspect = logo?.aspectRatio;
+  const measured = explicitAspect === undefined;
+
   const [srcAspectRatio, setSrcAspectRatio] = React.useState(1);
   const [elementAspectRatio, setElementAspectRatio] = React.useState(1);
   const measureRef = React.useRef<HTMLDivElement>(null);
@@ -62,6 +80,7 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
   // Sync before first paint: handles cached images and static elements with no flash.
   // Falls back to async for uncached images (onload) and dynamic elements (ResizeObserver).
   useIsomorphicLayoutEffect(() => {
+    if (!measured) return;
     if (!logo?.src || !isSafeSrc(logo.src)) {
       setSrcAspectRatio(1);
       return;
@@ -80,18 +99,18 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
     return () => {
       img.onload = null;
     };
-  }, [logo?.src]);
+  }, [logo?.src, measured]);
 
   useIsomorphicLayoutEffect(() => {
-    if (!measureRef.current || !logo?.element) return;
+    if (!measured || !measureRef.current || !logo?.element) return;
     const { width, height } = measureRef.current.getBoundingClientRect();
     if (width && height) setElementAspectRatio(width / height);
-  }, [logo?.element]);
+  }, [logo?.element, measured]);
 
   // ResizeObserver as safety net for elements whose size changes after mount
   // (e.g. logo.element contains an <img> that loads asynchronously).
   React.useEffect(() => {
-    if (!measureRef.current || !logo?.element) return;
+    if (!measured || !measureRef.current || !logo?.element) return;
     const el = measureRef.current;
     const observer = new ResizeObserver((entries) => {
       const r = entries[0]?.contentRect;
@@ -99,20 +118,18 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [logo?.element]);
+  }, [logo?.element, measured]);
 
   const { matrix, size: qrSize } = React.useMemo(
     () => generateQRMatrix(value, ecLevel, requestedVersion),
     [value, ecLevel, requestedVersion],
   );
 
-  // Module size in pixels (accounting for margin)
-  const totalModules = qrSize + margin * 2;
-  const moduleSize = size / totalModules;
-  const marginPx = margin * moduleSize;
-
-  // Actual SVG dimensions
-  const svgSize = moduleSize * (qrSize + margin * 2);
+  const { moduleSize, marginPx, svgSize } = resolveGeometry(
+    size,
+    margin,
+    qrSize,
+  );
 
   const squareStyle: CornerSquareStyle = corner?.square?.style ?? 'square';
   const squareColor = corner?.square?.color ?? dotColor;
@@ -139,28 +156,49 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
   const maskId = uid + 'm';
   const titleId = uid + 't';
 
-  const aspectRatio = logo?.element ? elementAspectRatio : srcAspectRatio;
+  const aspectRatio = measured
+    ? logo?.element
+      ? elementAspectRatio
+      : srcAspectRatio
+    : logoAspectRatio(explicitAspect);
   const layout = layoutLogo({
     absoluteArea,
     aspectRatio,
     ecLevel,
     qrSize,
-    totalModules,
     moduleSize,
     marginPx,
   });
-  const logoMargin = logo?.margin ?? 0;
-  const logoX = layout.boxX + logoMargin;
-  const logoY = layout.boxY + logoMargin;
-  const logoWidth = Math.max(0, layout.boxWidth - logoMargin * 2);
-  const logoHeight = Math.max(0, layout.boxHeight - logoMargin * 2);
+  // In modules, like `margin`, so the logo keeps its proportions when `size`
+  // changes. An absolute unit here would scale with the viewBox instead.
+  const logoMargin = (logo?.margin ?? 0) * moduleSize;
+  // Rounded at emission, like every other coordinate, so the component and
+  // toSVGString place the logo and its mask on identical values.
+  const logoX = r2(layout.boxX + logoMargin);
+  const logoY = r2(layout.boxY + logoMargin);
+  const logoWidth = r2(Math.max(0, layout.boxWidth - logoMargin * 2));
+  const logoHeight = r2(Math.max(0, layout.boxHeight - logoMargin * 2));
 
   const applyLogoMask =
     hasLogoSrc && logoWidth > 0 && logoHeight > 0 && (logo?.hideDots ?? true);
 
+  // A margin carried over from when it meant SVG units consumes the whole box.
+  // Both axes: a landscape logo runs out of height first.
+  if (
+    isDev &&
+    hasLogoSrc &&
+    layout.boxWidth > 0 &&
+    layout.boxHeight > 0 &&
+    (logoWidth <= 0 || logoHeight <= 0)
+  ) {
+    console.warn(
+      `[QRCode] logo.margin=${logo?.margin} is measured in modules and leaves no room for the logo; it was not rendered.`,
+    );
+  }
+
   return (
     <>
-      {logo?.element && (
+      {logo?.element && measured && (
         <div
           ref={measureRef}
           aria-hidden="true"
@@ -176,16 +214,20 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
         </div>
       )}
       <svg
+        {...rest}
+        ref={ref}
         role="img"
         aria-labelledby={titleId}
-        width={size}
-        height={size}
+        width={r2(size)}
+        height={r2(size)}
         viewBox={`0 0 ${svgSize} ${svgSize}`}
         xmlns="http://www.w3.org/2000/svg"
         className={className}
         style={style}
       >
-        <title id={titleId}>{ariaLabel ?? `QR code: ${value}`}</title>
+        <title id={titleId}>
+          {xmlSafeText(ariaLabel ?? `QR code: ${value}`)}
+        </title>
         {/* Background */}
         {backgroundColor !== 'transparent' && (
           <rect width={svgSize} height={svgSize} fill={backgroundColor} />
@@ -197,10 +239,10 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
             <mask id={maskId}>
               <rect width={svgSize} height={svgSize} fill="white" />
               <rect
-                x={layout.clearX}
-                y={layout.clearY}
-                width={layout.clearWidth}
-                height={layout.clearHeight}
+                x={r2(layout.clearX)}
+                y={r2(layout.clearY)}
+                width={r2(layout.clearWidth)}
+                height={r2(layout.clearHeight)}
                 fill="black"
               />
             </mask>
@@ -252,4 +294,11 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
       </svg>
     </>
   );
-});
+}
+
+// Set explicitly: the published build is minified, so the inferred name is gone
+// from React DevTools and from error stacks.
+export const QRCode = /* @__PURE__ */ React.memo(
+  React.forwardRef<SVGSVGElement, QRCodeComponentProps>(QRCodeRoot),
+);
+QRCode.displayName = 'QRCode';

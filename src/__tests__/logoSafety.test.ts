@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   SAFE_AREAS,
+  isSafeSrc,
   layoutLogo,
   resolveLogoEcl,
   type LogoLayoutInput,
@@ -22,13 +23,11 @@ function inputFor(
   ecLevel?: ErrorCorrectionLevel,
 ): LogoLayoutInput {
   const resolved = resolveLogoEcl(true, logoSize, ecLevel);
-  const totalModules = qrSize + MARGIN_MODULES * 2;
   return {
     absoluteArea: resolved.absoluteArea,
     aspectRatio,
     ecLevel: resolved.ecLevel,
     qrSize,
-    totalModules,
     moduleSize: MODULE_SIZE,
     marginPx: MARGIN_MODULES * MODULE_SIZE,
   };
@@ -77,9 +76,10 @@ describe('layoutLogo', () => {
       for (const logoSize of SIZES) {
         const input = inputFor(sizeOf(version), logoSize);
         const { clearX, clearY, clearWidth, clearHeight } = layoutLogo(input);
-        const svgCentre = (input.totalModules * MODULE_SIZE) / 2;
-        expect(clearX + clearWidth / 2).toBeCloseTo(svgCentre, 10);
-        expect(clearY + clearHeight / 2).toBeCloseTo(svgCentre, 10);
+        const symbolCentre =
+          MARGIN_MODULES * MODULE_SIZE + (input.qrSize * MODULE_SIZE) / 2;
+        expect(clearX + clearWidth / 2).toBeCloseTo(symbolCentre, 10);
+        expect(clearY + clearHeight / 2).toBeCloseTo(symbolCentre, 10);
       }
     }
   });
@@ -89,8 +89,8 @@ describe('layoutLogo', () => {
       for (const logoSize of SIZES) {
         const input = inputFor(sizeOf(version), logoSize);
         const { clearWidth, clearHeight } = layoutLogo(input);
-        const svgSize = input.totalModules * MODULE_SIZE;
-        const area = (clearWidth * clearHeight) / (svgSize * svgSize);
+        const symbolSize = input.qrSize * MODULE_SIZE;
+        const area = (clearWidth * clearHeight) / (symbolSize * symbolSize);
         expect(area).toBeLessThanOrEqual(SAFE_AREAS[input.ecLevel] + 1e-9);
       }
     }
@@ -119,8 +119,8 @@ describe('layoutLogo', () => {
       for (const logoSize of SIZES) {
         for (const aspectRatio of [1, 2, 3]) {
           const input = inputFor(sizeOf(version), logoSize, aspectRatio);
-          const svgSize = input.totalModules * MODULE_SIZE;
-          const requestedArea = input.absoluteArea * svgSize * svgSize;
+          const symbolSize = input.qrSize * MODULE_SIZE;
+          const requestedArea = input.absoluteArea * symbolSize * symbolSize;
           const layout = layoutLogo(input);
           expect(layout.boxWidth).toBeLessThanOrEqual(
             Math.sqrt(requestedArea * aspectRatio) + 1e-9,
@@ -180,16 +180,54 @@ describe('layoutLogo', () => {
   });
 
   it('matches the worked examples from the spec of the rule', () => {
-    // v7 at size 0.4: 10.06 modules rounds to 11, which is 4.31% against the
-    // 4.00% level M is sized for, so it steps down to 9 and the logo follows.
+    // v9 at size 0.4: 10.06 modules rounds to 11, which is 4.31% of the symbol
+    // against the 4.00% level M is sized for, so it steps down to 9 and the
+    // logo follows.
+    const v9 = layoutLogo(inputFor(sizeOf(9), 0.4));
+    expect(v9.clearWidth / MODULE_SIZE).toBe(9);
+    expect(v9.boxWidth / MODULE_SIZE).toBeCloseTo(9, 6);
+
+    // v7 at size 0.4: 8.54 modules rounds to 9, and 9x9 is exactly the 4.00%
+    // budget, so the logo keeps the size that was asked for.
     const v7 = layoutLogo(inputFor(sizeOf(7), 0.4));
     expect(v7.clearWidth / MODULE_SIZE).toBe(9);
-    expect(v7.boxWidth / MODULE_SIZE).toBeCloseTo(9, 6);
-
-    // v3 at size 0.6: 8.60 modules rounds to 9 and stays within budget, so the
-    // logo keeps the size that was asked for.
-    const v3 = layoutLogo(inputFor(sizeOf(3), 0.6));
-    expect(v3.clearWidth / MODULE_SIZE).toBe(9);
-    expect(v3.boxWidth / MODULE_SIZE).toBeCloseTo(8.6, 1);
+    expect(v7.boxWidth / MODULE_SIZE).toBeCloseTo(8.54, 2);
   });
+});
+
+describe('isSafeSrc', () => {
+  // Browsers skip ASCII whitespace and NUL inside a scheme, so these all reach
+  // the same handler as a plain javascript: URL.
+  const blocked = [
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    '  javascript:alert(1)',
+    'java\tscript:alert(1)',
+    'java\nscript:alert(1)',
+    'java\rscript:alert(1)',
+    'java\u0000script:alert(1)',
+    'java script:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'data:application/javascript,alert(1)',
+  ];
+  for (const src of blocked) {
+    it(`blocks ${JSON.stringify(src)}`, () => {
+      expect(isSafeSrc(src)).toBe(false);
+    });
+  }
+
+  const allowed = [
+    'https://example.com/logo.png',
+    'http://example.com/logo.png',
+    '/assets/logo.svg',
+    './logo.png',
+    'blob:https://example.com/9a8b',
+    'data:image/png;base64,iVBORw0KGgo=',
+    'data:image/svg+xml;utf8,<svg/>',
+  ];
+  for (const src of allowed) {
+    it(`allows ${JSON.stringify(src)}`, () => {
+      expect(isSafeSrc(src)).toBe(true);
+    });
+  }
 });

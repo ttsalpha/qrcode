@@ -1,6 +1,59 @@
 import type { CornerDotStyle, CornerSquareStyle } from '../types';
 import { r2 } from './paths';
 
+// XML 1.0 admits only tab, LF and CR out of the C0 range, so any other control
+// character — GS1 payloads separate fields with 0x1D — makes the SVG
+// unparseable. Only the title is stripped; the matrix still encodes the value.
+const XML_FORBIDDEN = /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g;
+
+export function xmlSafeText(text: string): string {
+  return text.replace(XML_FORBIDDEN, '');
+}
+
+export interface Geometry {
+  totalModules: number;
+  moduleSize: number;
+  marginPx: number;
+  svgSize: number;
+}
+
+// Rounds moduleSize before deriving anything from it. An unrounded one leaves
+// 0.01-unit seams between rows and gives the two renderers different viewBoxes
+// for identical props.
+export function resolveGeometry(
+  size: number,
+  margin: number,
+  qrSize: number,
+): Geometry {
+  // Zero draws nothing rather than throwing: `size={el.clientWidth}` is 0
+  // before the element has been laid out.
+  if (!Number.isFinite(size) || size < 0) {
+    throw new RangeError(
+      `[QRCode] size must be a non-negative number, got ${String(size)}`,
+    );
+  }
+  if (!Number.isFinite(margin) || margin < 0) {
+    throw new RangeError(
+      `[QRCode] margin must be a non-negative number, got ${String(margin)}`,
+    );
+  }
+  const totalModules = qrSize + margin * 2;
+  const moduleSize = r2(size / totalModules);
+  // Rounding to the 2-decimal grid collapses to 0 once the margin dwarfs the
+  // size, which would otherwise emit a 0x0 viewBox inside a full-width <svg>.
+  if (size > 0 && moduleSize === 0) {
+    throw new RangeError(
+      `[QRCode] margin ${margin} leaves no room for a ${qrSize}-module symbol at size ${size}`,
+    );
+  }
+  return {
+    totalModules,
+    moduleSize,
+    marginPx: r2(margin * moduleSize),
+    svgSize: r2(moduleSize * totalModules),
+  };
+}
+
 // Every path below rounds at the point it emits a number. Corner geometry is
 // derived by dividing the finder width by 7, so the raw values carry binary
 // float noise (7 * moduleSize / 7 is not moduleSize). Rounding here covers both
@@ -109,6 +162,30 @@ export function cornerSquarePath(
   const outer = roundedRect(x, y, size, size, size * 0.35);
   const cut = roundedRect(x + iOffset, y + iOffset, inner, inner, inner * 0.2);
   return `${outer} ${cut}`;
+}
+
+// The two paths that make up one finder pattern corner. Shared so the React
+// component and the string builder cannot round the same corner differently:
+// every derived length is rounded here, before it reaches the path builders.
+export function cornerPaths(
+  x: number,
+  y: number,
+  moduleSize: number,
+  squareStyle: CornerSquareStyle,
+  dotStyle: CornerDotStyle,
+): { square: string; dot: string } {
+  const outerSize = r2(7 * moduleSize);
+  const innerSize = r2(3 * moduleSize);
+  const innerOffset = r2(2 * moduleSize);
+  return {
+    square: cornerSquarePath(x, y, outerSize, squareStyle),
+    dot: cornerDotPath(
+      r2(x + innerOffset),
+      r2(y + innerOffset),
+      innerSize,
+      dotStyle,
+    ),
+  };
 }
 
 // Converts a module grid index to its pixel position, accounting for the quiet zone margin.

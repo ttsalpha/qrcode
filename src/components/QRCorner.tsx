@@ -1,6 +1,6 @@
 import * as React from 'react';
 import type { CornerDotStyle, CornerSquareStyle } from '../types';
-import { cornerSquarePath, cornerDotPath } from '../renderer/utils';
+import { cornerPaths } from '../renderer/utils';
 
 interface QRCornerProps {
   x: number;
@@ -21,7 +21,7 @@ interface QRCornerProps {
 //
 // The outer ring uses fillRule="evenodd" so the inner cutout becomes transparent,
 // revealing the background color instead of overpainting it.
-export const QRCorner = /* @__PURE__ */ React.memo(function QRCorner({
+const QRCornerInner = function QRCorner({
   x,
   y,
   moduleSize,
@@ -30,23 +30,17 @@ export const QRCorner = /* @__PURE__ */ React.memo(function QRCorner({
   dotStyle,
   dotColor,
 }: QRCornerProps): React.JSX.Element {
-  // finder pattern anatomy: 7×7 outer ring, 3×3 center dot, 2-module gap between them
-  const outerSize = 7 * moduleSize;
-  const innerSize = 3 * moduleSize;
-  const innerOffset = 2 * moduleSize;
-
-  const squarePath = cornerSquarePath(x, y, outerSize, squareStyle);
-  const dotPathStr = cornerDotPath(
-    x + innerOffset,
-    y + innerOffset,
-    innerSize,
-    dotStyle,
-  );
+  const { square, dot } = cornerPaths(x, y, moduleSize, squareStyle, dotStyle);
 
   return (
     <g>
-      <path d={squarePath} fill={squareColor} fillRule="evenodd" />
-      <path d={dotPathStr} fill={dotColor} />
+      <path d={square} fill={squareColor} fillRule="evenodd" />
+      <path d={dot} fill={dotColor} />
     </g>
   );
-});
+};
+
+// Explicit for the same reason as <QRCode>: minification drops the inferred
+// name, and esbuild's keepNames costs 881 gzipped bytes to restore it.
+export const QRCorner = /* @__PURE__ */ React.memo(QRCornerInner);
+QRCorner.displayName = 'QRCorner';

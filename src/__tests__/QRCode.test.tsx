@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { createRef } from 'react';
 import { render } from '@testing-library/react';
 import { QRCode } from '../components/QRCode';
 
@@ -133,7 +134,11 @@ describe('QRCode component', () => {
     const qrSize = 21; // "TEST" fits v1 at every EC level used here
     const totalModules = qrSize + 8;
     const svgSize = 300;
-    const moduleSize = svgSize / totalModules;
+    // Both renderers round the module size to 2 decimals before deriving any
+    // coordinate from it, so adjacent modules tile exactly.
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    const moduleSize = round2(svgSize / totalModules);
+    const drawnSize = round2(moduleSize * totalModules);
 
     for (const logoSize of [0.2, 0.3, 0.5, 0.6]) {
       const { container } = render(
@@ -150,7 +155,7 @@ describe('QRCode component', () => {
       expect(width / moduleSize).toBeCloseTo(Math.round(width / moduleSize), 6);
       expect(Math.round(width / moduleSize) % 2).toBe(1);
       expect(x / moduleSize).toBeCloseTo(Math.round(x / moduleSize), 6);
-      expect(x + width / 2).toBeCloseTo(svgSize / 2, 6);
+      expect(x + width / 2).toBeCloseTo(drawnSize / 2, 6);
     }
   });
 
@@ -199,19 +204,24 @@ describe('QRCode component', () => {
   });
 
   it('logo margin reduces rendered logo size within the cleared box', () => {
-    const { container } = render(
-      <QRCode
-        value="TEST"
-        size={300}
-        logo={{ src: 'https://example.com/logo.png', size: 0.3, margin: 10 }}
-        qr={{ errorCorrectionLevel: 'M' }}
-      />,
-    );
-    const image = container.querySelector('image');
-    expect(image).not.toBeNull();
-    // logo width = box - margin*2; box ≈ 0.3 * svgSize, margin shrinks it
-    const width = Number(image?.getAttribute('width'));
-    expect(width).toBeGreaterThan(0);
+    const widthWithMargin = (margin: number) => {
+      const { container } = render(
+        <QRCode
+          value="TEST"
+          size={300}
+          logo={{ src: 'https://example.com/logo.png', size: 0.6, margin }}
+          qr={{ errorCorrectionLevel: 'H' }}
+        />,
+      );
+      const image = container.querySelector('image');
+      expect(image).not.toBeNull();
+      return Number(image?.getAttribute('width'));
+    };
+    // margin is in modules, like the symbol's own margin prop
+    const bare = widthWithMargin(0);
+    const inset = widthWithMargin(1);
+    expect(bare).toBeGreaterThan(0);
+    expect(inset).toBeLessThan(bare);
   });
 
   it('renders different error correction levels', () => {
@@ -415,8 +425,10 @@ describe('QRCode component', () => {
       const image = container.querySelector('image');
       expect(image).not.toBeNull();
       const w = Number(image?.getAttribute('width'));
-      // area = 0.045 of svgSize² → width = sqrt(0.045)*300 ≈ 63.64
-      expect(w).toBeCloseTo(Math.sqrt(0.045) * 300, 0);
+      // area = 0.045 of the SYMBOL, not of the padded canvas. "TEST" is a v1
+      // symbol: 21 modules inside a 21 + 4*2 grid drawn at 300px.
+      const symbolSize = 21 * (300 / 29);
+      expect(w).toBeCloseTo(Math.sqrt(0.045) * symbolSize, 0);
     });
 
     it('size=0 renders no logo', () => {
@@ -452,5 +464,172 @@ describe('QRCode component', () => {
       ) as HTMLElement;
       expect(measureDiv).not.toBeNull();
     });
+  });
+});
+
+describe('SVG passthrough', () => {
+  it('forwards a ref to the svg element', () => {
+    const ref = createRef<SVGSVGElement>();
+    const { container } = render(<QRCode value="TEST" ref={ref} />);
+    expect(ref.current).toBe(container.querySelector('svg'));
+  });
+
+  it('passes unknown svg props through to the root element', () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <QRCode value="TEST" id="qr-1" data-testid="qr" onClick={onClick} />,
+    );
+    const svg = container.querySelector('svg') as SVGSVGElement;
+    expect(svg.getAttribute('id')).toBe('qr-1');
+    expect(svg.getAttribute('data-testid')).toBe('qr');
+    svg.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps control of the attributes it derives from its own props', () => {
+    // `role` is excluded from the prop type; the cast proves the runtime also
+    // holds the line, so the exclusion is not the only thing guarding it.
+    const forced = { role: 'presentation' } as Record<string, string>;
+    const { container } = render(
+      <QRCode value="TEST" size={128} {...forced} />,
+    );
+    const svg = container.querySelector('svg') as SVGSVGElement;
+    expect(svg.getAttribute('role')).toBe('img');
+    expect(svg.getAttribute('width')).toBe('128');
+  });
+
+  it('is named for React DevTools and error stacks', () => {
+    expect(QRCode.displayName).toBe('QRCode');
+  });
+});
+
+describe('title text', () => {
+  it('drops control characters that would make the SVG invalid XML', () => {
+    // GS1 payloads separate fields with 0x1D, which XML 1.0 forbids.
+    const value = '01034531200000111719112510ABCD1234';
+    const withGs = `${value.slice(0, 16)}\u001d${value.slice(16)}`;
+    const { container } = render(<QRCode value={withGs} />);
+    const title = container.querySelector('title')?.textContent ?? '';
+    expect(title).toBe(`QR code: ${value}`);
+    expect(title).not.toContain('\u001d');
+  });
+
+  it('leaves the encoded value untouched', () => {
+    const withGs = 'AB\u001dCD';
+    const { container } = render(<QRCode value={withGs} />);
+    // The title is sanitised, but the symbol still encodes the real bytes.
+    expect(container.querySelector('title')?.textContent).toBe('QR code: ABCD');
+    expect(container.querySelector('svg')).not.toBeNull();
+  });
+});
+
+describe('invalid geometry', () => {
+  for (const [label, props] of [
+    ['negative size', { size: -10 }],
+    ['non-numeric size', { size: '256" onload="x' as unknown as number }],
+    ['negative margin', { margin: -1 }],
+  ] as const) {
+    it(`rejects ${label} instead of rendering NaN geometry`, () => {
+      expect(() => render(<QRCode value="TEST" {...props} />)).toThrow(
+        RangeError,
+      );
+    });
+  }
+
+  // The 2-decimal grid collapses the module to nothing long before this, and
+  // a 0x0 viewBox inside a full-width <svg> is worse than an error.
+  it('rejects a margin that leaves no room for the symbol', () => {
+    expect(() =>
+      render(<QRCode value="TEST" size={256} margin={26000} />),
+    ).toThrow(RangeError);
+  });
+
+  // `size={el.clientWidth}` is 0 on the first render, so this has to draw
+  // nothing rather than unmount the tree.
+  it('draws an empty symbol at size 0 without throwing', () => {
+    const { container } = render(<QRCode value="TEST" size={0} />);
+    const svg = container.querySelector('svg');
+    expect(svg?.getAttribute('width')).toBe('0');
+    expect(svg?.getAttribute('viewBox')).toBe('0 0 0 0');
+  });
+});
+
+describe('logo margin', () => {
+  it('warns when the margin leaves no room for the logo', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        size={256}
+        logo={{ src: 'https://example.com/logo.png', size: 0.6, margin: 4 }}
+      />,
+    );
+    expect(container.querySelector('image')).toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('leaves no room for the logo'),
+    );
+    warn.mockRestore();
+  });
+
+  it('stays silent when the logo still fits', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        size={256}
+        logo={{ src: 'https://example.com/logo.png', size: 0.6, margin: 1 }}
+      />,
+    );
+    expect(container.querySelector('image')).not.toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe('logo.aspectRatio', () => {
+  // The hidden div exists only to be measured. With an explicit ratio there is
+  // nothing to measure, and mounting the element twice runs its effects twice.
+  it('skips the measuring copy when the ratio is given', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        logo={{ element: <span data-testid="brand">L</span>, aspectRatio: 2 }}
+      />,
+    );
+    expect(container.querySelectorAll('[data-testid="brand"]')).toHaveLength(1);
+    expect(container.querySelector('div[aria-hidden]')).toBeNull();
+    expect(container.querySelector('foreignObject')).not.toBeNull();
+  });
+
+  it('still measures when no ratio is given', () => {
+    const { container } = render(
+      <QRCode
+        value="TEST"
+        logo={{ element: <span data-testid="brand">L</span> }}
+      />,
+    );
+    expect(container.querySelectorAll('[data-testid="brand"]')).toHaveLength(2);
+    expect(container.querySelector('div[aria-hidden]')).not.toBeNull();
+  });
+
+  it('lays the logo out from the given ratio', () => {
+    const widthFor = (aspectRatio: number) => {
+      const { container } = render(
+        <QRCode
+          value="TEST"
+          size={300}
+          logo={{ src: 'https://example.com/l.png', size: 0.6, aspectRatio }}
+        />,
+      );
+      const image = container.querySelector('image') as SVGImageElement;
+      return [
+        Number(image.getAttribute('width')),
+        Number(image.getAttribute('height')),
+      ];
+    };
+    const [w1, h1] = widthFor(1);
+    const [w3, h3] = widthFor(3);
+    expect(w1 / h1).toBeCloseTo(1, 2);
+    expect(w3 / h3).toBeCloseTo(3, 2);
   });
 });

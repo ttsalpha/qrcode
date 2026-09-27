@@ -1,7 +1,12 @@
 import type { ErrorCorrectionLevel } from '../types';
 
-// Max logo area as fraction of svgSize² per ECL. sqrt(value) = linear logo/svgSize.
-// Empirical safe linear limits: L≤15%, M≤20%, Q≤25%, H≤30%.
+// Max logo area as a fraction of the symbol area per ECL, where the symbol is
+// the QR grid itself. sqrt(value) = the logo's linear share of it. Empirical
+// safe linear limits: L≤15%, M≤20%, Q≤25%, H≤30%.
+//
+// Denominated by the symbol rather than the padded canvas on purpose: the
+// margin carries no error correction, so counting it would let a larger margin
+// silently buy a larger logo and destroy more of the data it has to sit on.
 export const SAFE_AREAS = { L: 0.0225, M: 0.04, Q: 0.0625, H: 0.09 } as const;
 export const MAX_SAFE_AREA = SAFE_AREAS.H;
 export const DEFAULT_SIZE_RATIO = 0.4;
@@ -15,16 +20,28 @@ export function pickECLForArea(area: number): ErrorCorrectionLevel {
 
 // Block javascript: and non-image data: URLs; allow everything else
 // (https, http, relative paths, blob:, data:image/…).
+//
+// Browsers strip tab, LF and CR from a URL before parsing it, so
+// "java\tscript:" reaches the same handler as "javascript:". This strips every
+// code unit up to 0x20, a superset, which can only reject more.
+const SCHEME_NOISE = /[\u0000-\u0020]/g;
+
 export function isSafeSrc(src: string): boolean {
-  const s = src.trim().toLowerCase();
+  const s = src.replace(SCHEME_NOISE, '').toLowerCase();
   if (s.startsWith('javascript:')) return false;
   if (s.startsWith('data:') && !s.startsWith('data:image/')) return false;
   return true;
 }
 
+// A zero, negative or non-finite ratio would make the logo box collapse or turn
+// into NaN geometry, so anything unusable falls back to square.
+export function logoAspectRatio(value: number | undefined): number {
+  return value !== undefined && Number.isFinite(value) && value > 0 ? value : 1;
+}
+
 export interface LogoEclResolution {
   ecLevel: ErrorCorrectionLevel;
-  // Logo area as a fraction of svgSize², after clamping to the ECL's safe limit
+  // Logo area as a fraction of the symbol area, clamped to the ECL's safe limit
   absoluteArea: number;
   // Area the user asked for before clamping, used for the dev warning
   targetArea: number;
@@ -40,7 +57,7 @@ export function resolveLogoEcl(
   userSize: number | undefined,
   userECL: ErrorCorrectionLevel | undefined,
 ): LogoEclResolution {
-  // Normalize user size [0, 1] → absolute area (fraction of svgSize²)
+  // Normalize user size [0, 1] → absolute area (fraction of the symbol area)
   const sizeRatio = hasLogo
     ? userSize !== undefined
       ? Math.max(0, Math.min(1, userSize))
@@ -101,12 +118,11 @@ const EMPTY_LAYOUT: LogoLayout = {
 };
 
 export interface LogoLayoutInput {
-  // Fraction of svgSize² the logo may cover, from resolveLogoEcl
+  // Fraction of the symbol area the logo may cover, from resolveLogoEcl
   absoluteArea: number;
   aspectRatio: number;
   ecLevel: ErrorCorrectionLevel;
   qrSize: number;
-  totalModules: number;
   moduleSize: number;
   marginPx: number;
 }
@@ -115,7 +131,7 @@ export interface LogoLayoutInput {
 // is ever left half covered.
 //
 // The cleared area is rounded up to whole modules, which can push it past the
-// area budget the EC level was chosen for (on v7 at size 0.4, 10.06 modules
+// area budget the EC level was chosen for (on v9 at size 0.4, 10.06 modules
 // rounds to 11, or 4.31% against the 4.00% level M is sized for). When that
 // happens the search steps down and the logo shrinks to fit the smaller square.
 //
@@ -130,12 +146,11 @@ export function layoutLogo({
   aspectRatio,
   ecLevel,
   qrSize,
-  totalModules,
   moduleSize,
   marginPx,
 }: LogoLayoutInput): LogoLayout {
-  const svgSize = totalModules * moduleSize;
-  const clampedArea = absoluteArea * svgSize * svgSize;
+  const symbolSize = qrSize * moduleSize;
+  const clampedArea = absoluteArea * symbolSize * symbolSize;
   const wantWidth = Math.sqrt(clampedArea * aspectRatio);
   const wantHeight = Math.sqrt(clampedArea / aspectRatio);
 
@@ -146,13 +161,20 @@ export function layoutLogo({
   const wantWidthModules = wantWidth / moduleSize;
   const wantHeightModules = wantHeight / moduleSize;
   // Budget in module², so it can be compared without leaving module units
-  const budget = SAFE_AREAS[ecLevel] * totalModules * totalModules;
+  const budget = SAFE_AREAS[ecLevel] * qrSize * qrSize;
 
-  let clearWidthModules = Math.min(ceilOdd(wantWidthModules), qrSize);
+  // The budget is an area, so a very wide logo could satisfy it with a
+  // one-module strip spanning the symbol and still wipe out the timing
+  // patterns and the finder separators, which no error correction can
+  // reconstruct. A centred span of qrSize - 16 stops 8 modules short of each
+  // edge, clearing all three. qrSize is odd, so the cap is odd too.
+  const maxSpan = Math.max(1, qrSize - 16);
+
+  let clearWidthModules = Math.min(ceilOdd(wantWidthModules), maxSpan);
   let clearHeightModules = 1;
   for (;;) {
     const scale = Math.min(1, clearWidthModules / wantWidthModules);
-    clearHeightModules = Math.min(ceilOdd(wantHeightModules * scale), qrSize);
+    clearHeightModules = Math.min(ceilOdd(wantHeightModules * scale), maxSpan);
     if (
       clearWidthModules * clearHeightModules <= budget ||
       clearWidthModules <= 1
@@ -163,7 +185,7 @@ export function layoutLogo({
   }
 
   // Fit against both axes so the logo never spills out of the cleared area,
-  // including when a very wide logo hit the qrSize clamp above.
+  // including when a very wide logo hit the maxSpan clamp above.
   const fit = Math.min(
     1,
     clearWidthModules / wantWidthModules,

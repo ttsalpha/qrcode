@@ -11,6 +11,7 @@ import {
   pickECLForArea,
   isSafeSrc,
   resolveLogoEcl,
+  layoutLogo,
 } from '../renderer/logoSafety';
 import { QRCorner } from './QRCorner';
 
@@ -139,16 +140,20 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
   const titleId = uid + 't';
 
   const aspectRatio = logo?.element ? elementAspectRatio : srcAspectRatio;
-  const clampedArea = absoluteArea * svgSize * svgSize;
-  const logoBoxWidth = Math.sqrt(clampedArea * aspectRatio);
-  const logoBoxHeight = Math.sqrt(clampedArea / aspectRatio);
+  const layout = layoutLogo({
+    absoluteArea,
+    aspectRatio,
+    ecLevel,
+    qrSize,
+    totalModules,
+    moduleSize,
+    marginPx,
+  });
   const logoMargin = logo?.margin ?? 0;
-  const logoBoxX = (svgSize - logoBoxWidth) / 2;
-  const logoBoxY = (svgSize - logoBoxHeight) / 2;
-  const logoX = logoBoxX + logoMargin;
-  const logoY = logoBoxY + logoMargin;
-  const logoWidth = Math.max(0, logoBoxWidth - logoMargin * 2);
-  const logoHeight = Math.max(0, logoBoxHeight - logoMargin * 2);
+  const logoX = layout.boxX + logoMargin;
+  const logoY = layout.boxY + logoMargin;
+  const logoWidth = Math.max(0, layout.boxWidth - logoMargin * 2);
+  const logoHeight = Math.max(0, layout.boxHeight - logoMargin * 2);
 
   const applyLogoMask =
     hasLogoSrc && logoWidth > 0 && logoHeight > 0 && (logo?.hideDots ?? true);
@@ -192,10 +197,10 @@ export const QRCode = /* @__PURE__ */ React.memo(function QRCode({
             <mask id={maskId}>
               <rect width={svgSize} height={svgSize} fill="white" />
               <rect
-                x={logoBoxX}
-                y={logoBoxY}
-                width={logoBoxWidth}
-                height={logoBoxHeight}
+                x={layout.clearX}
+                y={layout.clearY}
+                width={layout.clearWidth}
+                height={layout.clearHeight}
                 fill="black"
               />
             </mask>

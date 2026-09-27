@@ -126,6 +126,34 @@ describe('QRCode component', () => {
     expect(container.querySelector('mask')).not.toBeNull();
   });
 
+  // The mask has to land on module boundaries, or it leaves part of a dot
+  // showing along its edge. Covered exhaustively in logoSafety.test.ts; this
+  // checks the component actually renders what the helper computed.
+  it('renders the mask aligned to the module grid', () => {
+    const qrSize = 21; // "TEST" fits v1 at every EC level used here
+    const totalModules = qrSize + 8;
+    const svgSize = 300;
+    const moduleSize = svgSize / totalModules;
+
+    for (const logoSize of [0.2, 0.3, 0.5, 0.6]) {
+      const { container } = render(
+        <QRCode
+          value="TEST"
+          size={svgSize}
+          logo={{ src: 'https://example.com/logo.png', size: logoSize }}
+        />,
+      );
+      const clear = container.querySelectorAll('mask rect')[1];
+      const x = Number(clear.getAttribute('x'));
+      const width = Number(clear.getAttribute('width'));
+
+      expect(width / moduleSize).toBeCloseTo(Math.round(width / moduleSize), 6);
+      expect(Math.round(width / moduleSize) % 2).toBe(1);
+      expect(x / moduleSize).toBeCloseTo(Math.round(x / moduleSize), 6);
+      expect(x + width / 2).toBeCloseTo(svgSize / 2, 6);
+    }
+  });
+
   it('does not render mask when hideDots is false', () => {
     const { container } = render(
       <QRCode

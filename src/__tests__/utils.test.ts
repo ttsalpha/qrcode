@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { toSVGString, toDataURL } from '../utils';
+import { resolveLogoEcl } from '../renderer/logoSafety';
+import { generateQRMatrix } from '../core/matrix';
 
 describe('toSVGString', () => {
   it('returns a string', () => {
@@ -87,6 +89,38 @@ describe('toSVGString', () => {
     expect(idOf(toSVGString({ value: 'A' }))).not.toBe(
       idOf(toSVGString({ value: 'B' })),
     );
+  });
+
+  // The mask that clears dots behind the logo has to land on module boundaries,
+  // or it leaves part of a dot showing along its edge.
+  it('aligns the logo mask to the module grid', () => {
+    for (const value of ['TEST', 'https://example.com']) {
+      for (const logoSize of [0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]) {
+        const { ecLevel } = resolveLogoEcl(true, logoSize, undefined);
+        const { size: qrSize } = generateQRMatrix(value, ecLevel);
+        const totalModules = qrSize + 8; // default margin of 4 on each side
+
+        const svg = toSVGString({
+          value,
+          logo: { src: 'data:image/png;base64,abc', size: logoSize },
+        });
+        const viewBox = Number(svg.match(/viewBox="0 0 ([\d.]+)/)![1]);
+        const moduleSize = viewBox / totalModules;
+        const mask = svg.match(
+          /<mask[^>]*>.*?<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="([\d.]+)"/,
+        )!;
+        const x = Number(mask[1]);
+        const width = Number(mask[3]);
+
+        // r2 rounds the emitted numbers, so compare to 2 decimal places
+        const widthModules = width / moduleSize;
+        const startModules = x / moduleSize;
+        expect(widthModules).toBeCloseTo(Math.round(widthModules), 1);
+        expect(startModules).toBeCloseTo(Math.round(startModules), 1);
+        expect(Math.round(widthModules) % 2).toBe(1);
+        expect(x + width / 2).toBeCloseTo(viewBox / 2, 1);
+      }
+    }
   });
 
   it('appends px to numeric style values, matching React', () => {

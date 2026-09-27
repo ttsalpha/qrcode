@@ -3,7 +3,7 @@ import type { QRCodeProps, CornerDotStyle, CornerSquareStyle } from '../types';
 import { generateQRMatrix } from '../core/matrix';
 import { cornerSquarePath, cornerDotPath } from './utils';
 import { buildDataModulesPath, r2 } from './paths';
-import { isSafeSrc, resolveLogoEcl } from './logoSafety';
+import { isSafeSrc, resolveLogoEcl, layoutLogo } from './logoSafety';
 
 // Two independent xor-multiply accumulators, combined so the id is wide enough
 // that distinct props do not collide on one page. A counter would make
@@ -178,17 +178,26 @@ export function buildSVGString(props: QRCodeProps): string {
     dotStyle,
   );
 
-  // Logo dimensions (aspect ratio = 1 for headless; no image loading available)
+  // Aspect ratio is 1 here: the headless builder cannot load the image to
+  // measure it, unlike <QRCode>.
   const logoMargin = logo?.margin ?? 0;
-  const clampedArea = absoluteArea * svgSize * svgSize;
-  const logoBoxWidth = r2(Math.sqrt(clampedArea));
-  const logoBoxHeight = logoBoxWidth;
-  const logoBoxX = r2((svgSize - logoBoxWidth) / 2);
-  const logoBoxY = r2((svgSize - logoBoxHeight) / 2);
-  const logoX = r2(logoBoxX + logoMargin);
-  const logoY = r2(logoBoxY + logoMargin);
-  const logoWidth = r2(Math.max(0, logoBoxWidth - logoMargin * 2));
-  const logoHeight = r2(Math.max(0, logoBoxHeight - logoMargin * 2));
+  const layout = layoutLogo({
+    absoluteArea,
+    aspectRatio: 1,
+    ecLevel,
+    qrSize,
+    totalModules,
+    moduleSize,
+    marginPx,
+  });
+  const clearX = r2(layout.clearX);
+  const clearY = r2(layout.clearY);
+  const clearWidth = r2(layout.clearWidth);
+  const clearHeight = r2(layout.clearHeight);
+  const logoX = r2(layout.boxX + logoMargin);
+  const logoY = r2(layout.boxY + logoMargin);
+  const logoWidth = r2(Math.max(0, layout.boxWidth - logoMargin * 2));
+  const logoHeight = r2(Math.max(0, layout.boxHeight - logoMargin * 2));
 
   const applyLogoMask =
     hasLogo && logoWidth > 0 && logoHeight > 0 && (logo?.hideDots ?? true);
@@ -220,7 +229,7 @@ export function buildSVGString(props: QRCodeProps): string {
     svg +=
       `<defs><mask id="${maskId}">` +
       `<rect width="${svgSize}" height="${svgSize}" fill="white"/>` +
-      `<rect x="${logoBoxX}" y="${logoBoxY}" width="${logoBoxWidth}" height="${logoBoxHeight}" fill="black"/>` +
+      `<rect x="${clearX}" y="${clearY}" width="${clearWidth}" height="${clearHeight}" fill="black"/>` +
       `</mask></defs>`;
   }
 

@@ -6,7 +6,7 @@ import { selectAndApplyBestMaskFlat } from './mask';
 // stored as a 40-row table: start at 6, end at 4·version+10 (= size−7), interior
 // points evenly spaced on an even step. Version 32's step (26) is the documented
 // exception to the even-spacing rule. Reproduces Annex E exactly for all 40.
-// Exported for the frozen Annex E test; production callers use computeQRMatrix.
+// Exported only so the frozen Annex E test can assert the centers directly.
 export function alignmentCenters(version: number): number[] {
   if (version === 1) return [];
   const count = ((version / 7) | 0) + 2;
@@ -383,7 +383,7 @@ export function computeQRMatrix(
 //
 // Copy 1 (15 cells, top-left area): bits 14..0 per FORMAT_INFO_POSITIONS.
 // Copy 2 (15 cells, split): bits 0..7 along row 8 from the right edge inward,
-// then bits 8..14 up column 8 from row size-7 to row size-1. The two halves
+// then bits 8..14 down column 8 from row size-7 to row size-1. The two halves
 // partition the 15 bits; no bit appears twice.
 //
 // The dark module at (size-8, 8) is always forced dark regardless of format bits.

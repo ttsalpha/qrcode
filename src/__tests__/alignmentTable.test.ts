@@ -7,8 +7,9 @@ import { alignmentCenters } from '../core/matrix';
 // table. This proves the derivation reproduces Annex E exactly for all 40
 // versions, the same way ecTable.test.ts pins Table 9.
 //
-// Without it the only coverage was v1 and v2, which is how the v31/v32 regression
-// reached a release.
+// A derived formula with a hardcoded exception is the kind that passes spot
+// checks on small versions and fails at one specific large one, so every version
+// is asserted rather than a sample.
 // prettier-ignore
 const ANNEX_E: readonly (readonly number[])[] = [
   [],                            // v1 (no alignment patterns)

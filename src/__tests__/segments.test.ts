@@ -15,7 +15,8 @@ function singleModeOf(data: string): EncodingMode {
   return 'byte';
 }
 
-// What the encoder would have cost before segmentation existed.
+// Cost of forcing one mode over the whole value: the baseline the search must
+// never lose to.
 function singleModeBytes(data: string, version: number): number {
   const mode = singleModeOf(data);
   const charCount = mode === 'byte' ? utf8(data).length : data.length;

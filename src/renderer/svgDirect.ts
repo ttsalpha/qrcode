@@ -5,9 +5,9 @@ import { cornerSquarePath, cornerDotPath } from './utils';
 import { buildDataModulesPath, r2 } from './paths';
 import { isSafeSrc, resolveLogoEcl } from './logoSafety';
 
-// FNV-1a, two seeds combined, so identical props always produce identical ids.
-// A counter would make toSVGString non-deterministic and defeat content hashing
-// and HTTP caching of generated SVGs.
+// Two independent xor-multiply accumulators, combined so the id is wide enough
+// that distinct props do not collide on one page. A counter would make
+// toSVGString non-deterministic and defeat content hashing and HTTP caching.
 function hashId(key: string): string {
   let a = 0x811c9dc5;
   let b = 0x01000193;
@@ -137,9 +137,8 @@ export function buildSVGString(props: QRCodeProps): string {
     corner?.dot?.style ?? defaultCornerDotStyle;
   const cornerDotColor = corner?.dot?.color ?? dotColor;
 
-  // Colors land in attribute position, so they must be escaped like every other
-  // caller-supplied string here. React escapes these for <QRCode>; this builder
-  // has to do it itself.
+  // Colors land in attribute position. React escapes them for <QRCode>; this
+  // builder writes the string itself, so it has to.
   const dotColorAttr = esc(dotColor);
   const backgroundColorAttr = esc(backgroundColor);
   const squareColorAttr = esc(squareColor);

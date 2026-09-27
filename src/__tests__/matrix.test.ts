@@ -154,7 +154,7 @@ describe('format information', () => {
   const readCopy1 = (m: Uint8Array, size: number): number =>
     COPY1.reduce((acc, [r, c]) => (acc << 1) | m[r * size + c], 0);
 
-  // copy 2: bits 0..7 along row 8 from the right edge, bits 8..14 up column 8
+  // copy 2: bits 0..7 along row 8 from the right edge, bits 8..14 down column 8
   const readCopy2 = (m: Uint8Array, size: number): number => {
     let bits = 0;
     for (let i = 0; i < 8; i++) bits |= m[8 * size + size - 1 - i] << i;

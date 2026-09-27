@@ -94,9 +94,9 @@ describe('EC table compaction reproduces ISO Table 9', () => {
 
 // Self-contained guard on the same table. A symbol's total codeword count is a
 // property of the version alone, so the four EC levels of a version must agree.
-// The v30-40 ECL M data-capacity rows were understated by 31 to 98 codewords and
-// broke this without breaking the row-by-row comparison above, because the
-// frozen table carried the same transcription error.
+// The comparison above cannot catch a transcription error that the frozen table
+// and the source table share, because it compares one copy against another; this
+// checks an invariant instead.
 describe('total codeword count is a property of the version', () => {
   for (let version = 1; version <= 40; version++) {
     it(`v${version}`, () => {

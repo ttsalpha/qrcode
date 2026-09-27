@@ -176,8 +176,8 @@ export function encodeQR(
     }
   } else {
     // The character count indicator widths, and therefore the optimal
-    // segmentation, are constant within a version group — so the search runs
-    // three times at most, not once per version.
+    // segmentation, are constant within a version group, so the search runs
+    // three times at most rather than once per version.
     let found: { version: number; segments: Segment[] } | undefined;
     for (const [lo, hi] of VERSION_GROUPS) {
       const groupSegments = segmentsFor(lo);

@@ -5,11 +5,13 @@ import { encodeQR } from '../core/encode';
 import type { ErrorCorrectionLevel } from '../types';
 
 // End-to-end proof that generated symbols actually decode. The golden snapshots
-// pin the output bytes and mask.test.ts pins the fast scorer against the
-// reference scorer, but a systematically malformed symbol satisfies both: that
-// is how the v31/v32 alignment bug and the v30-40 ECL M capacity bug shipped.
-// jsQR is an independent decoder (pure JS, no browser) used here purely as an
-// oracle; the alternative would be @zxing/library.
+// pin output bytes and mask.test.ts pins the fast scorer against the reference
+// scorer, but a symbol can satisfy both and still be unreadable: a misplaced
+// function pattern or a wrong capacity produces output that is stable and
+// self-consistent, just not a valid QR code.
+//
+// jsQR is an independent decoder (pure JS, no browser) used purely as an oracle;
+// the alternative would be @zxing/library.
 const SCALE = 4;
 const QUIET = 4;
 
@@ -67,9 +69,10 @@ function fillVersion(
 
 const ECLS: ErrorCorrectionLevel[] = ['L', 'M', 'Q', 'H'];
 
-// Spread across the three character-count-indicator groups (1-9, 10-26, 27-40),
-// over the alignment-pattern edge versions fixed in b8c168b, and over the high
-// versions where the ECL M capacity rows were wrong.
+// Spread across the three character-count-indicator groups (1-9, 10-26, 27-40)
+// and over the versions with irregular structure: v32's alignment step is the
+// documented exception to even spacing, and v30-40 split the data into the most
+// EC blocks.
 const VERSIONS = [1, 2, 7, 10, 26, 27, 30, 31, 32, 40];
 
 describe('round-trip: generated matrices decode', () => {

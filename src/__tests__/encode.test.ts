@@ -3,7 +3,7 @@ import { encodeQR } from '../core/encode';
 import { generateQRMatrix } from '../core/matrix';
 import type { EncodingMode } from '../types';
 
-// Segmentation is per-mode now, so assert on the resulting mode sequence.
+// A value can span several mode segments, so assert on the whole mode sequence.
 const modesOf = (
   value: string,
   ...args: [] | [Parameters<typeof encodeQR>[1]]

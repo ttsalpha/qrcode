@@ -96,7 +96,8 @@ export function segmentsDataBytes(
   return Math.ceil((bits + 4) / 8);
 }
 
-// A whole string encoded in one mode. Used for the all-digit fast path.
+// The whole string as one segment, for inputs where a single mode is provably
+// optimal and the search can be skipped.
 export function singleSegment(
   data: string,
   mode: EncodingMode,
@@ -135,13 +136,6 @@ const COST_NUMERIC = 20;
 const COST_ALNUM = 33;
 const COST_BYTE_PER_UTF8_BYTE = 48;
 
-// Splits `data` into the segment list with the smallest total bit cost at the
-// given version, by dynamic programming over (character, mode). Switching mode
-// costs a fresh header, so the search trades a 4-bit indicator plus a character
-// count against the cheaper per-character rate of a denser mode.
-//
-// Only the version group matters: charCountBits is constant within one, so
-// callers compute this once per group rather than once per version.
 // One-pass classification with no allocation. ASCII covers every numeric and
 // alphanumeric character, so the common case never leaves the fast branch.
 interface Scan {
@@ -222,7 +216,6 @@ export function planSegments(data: string): SegmentPlan {
   if (digits === count) {
     uniform = singleSegment(data, 'numeric', count, totalBytes);
   } else if (alnums === count && digits === 0) {
-    // With digits present the search can still win by splitting out a numeric run.
     uniform = singleSegment(data, 'alphanumeric', count, totalBytes);
   } else if (alnums === 0) {
     uniform = singleSegment(data, 'byte', totalBytes, totalBytes);
@@ -241,6 +234,8 @@ export function planSegments(data: string): SegmentPlan {
   };
 }
 
+// Convenience for callers that need one version. Version selection goes through
+// planSegments instead, so the scan and tables are built once for all groups.
 export function buildSegments(data: string, version: number): Segment[] {
   return planSegments(data).forVersion(version);
 }

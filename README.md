@@ -19,6 +19,7 @@ Lightweight, fully customizable React QR code library — pure SVG, zero depende
 - **Customizable corners** — independent style and color for each finder pattern part
 - **Logo support** — embed an image or any React element in the center
 - **Export helpers** — `toSVGString()` for SSR/server use, `toDataURL()` for PNG/JPEG download
+- **Server-safe entry** — `@ttsalpha/qrcode/server` works in React Server Components
 - **Tree-shakeable** — named exports only, ESM + CJS output
 
 ## Installation
@@ -154,12 +155,21 @@ interface QROptions {
 
 ## Export Helpers
 
+The helpers are available from two entry points:
+
+| Import from               | Use when                                                 |
+| ------------------------- | -------------------------------------------------------- |
+| `@ttsalpha/qrcode`        | client components, anything that also renders `<QRCode>` |
+| `@ttsalpha/qrcode/server` | React Server Components, and any server-only code        |
+
+The root entry is marked `'use client'` because it ships the `<QRCode>` component. In a React Server Component every export of a client module becomes a client reference, so calling `toSVGString()` from the root entry there throws. Import from `@ttsalpha/qrcode/server` instead; it exposes the same helpers and types with no client boundary.
+
 ### `toSVGString(props)`
 
-Generates an SVG string without mounting to the DOM. Useful for server-side rendering, saving to a database, or copying to clipboard.
+Generates an SVG string without mounting to the DOM. Useful for server-side rendering, saving to a database, or copying to clipboard. Output is deterministic: identical props always produce an identical string, so results can be content-hashed and cached.
 
 ```ts
-import { toSVGString } from '@ttsalpha/qrcode';
+import { toSVGString } from '@ttsalpha/qrcode/server';
 
 const svg = toSVGString({ value: 'https://example.com', size: 512 });
 // "<svg role="img" ...>...</svg>"
@@ -171,6 +181,7 @@ Renders the QR code to a `data:` URL via Canvas. Browser-only (requires Canvas A
 
 ```ts
 import { toDataURL } from '@ttsalpha/qrcode';
+// or '@ttsalpha/qrcode/server' outside a client component
 
 // PNG (default)
 const png = await toDataURL({ value: 'https://example.com', size: 512 });

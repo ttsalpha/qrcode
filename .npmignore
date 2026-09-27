@@ -13,7 +13,6 @@ vitest.config.ts
 prettier.config.ts
 .editorconfig
 .gitignore
-.npmrc
 .npmignore
 .prettierignore
 pnpm-workspace.yaml

@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project
 follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-10-02
+
+### Added
+
+- A `./native` entry: `<QRCode>` for React Native and Expo, drawn with
+  `react-native-svg`. It takes a local asset or a URL as `logo.src`, SVG markup
+  as `logo.svg`, an `onError` callback, and forwards its `ref` to the `Svg` so
+  `ref.toDataURL` can produce an image. `logo.element` and the `toDataURL`
+  helper are not available there.
+- A `./core` entry with `buildQR`, which returns the geometry of a symbol as
+  plain data, and `toSVGString`. It has no React and no DOM.
+- `logo.radius`, which rounds the corners of the logo, from `0` (square) to `1`
+  (fully rounded). It applies to `logo.src` and `logo.element` in `<QRCode>`,
+  and to `logo.src` in `toSVGString`.
+- `logo.custom`, for reserving the logo area when the renderer draws the logo
+  itself.
+
+### Fixed
+
+- With `corner.square.style: 'circle'`, `<QRCode>` could place the finder ring
+  0.01 units away from where `toSVGString` placed it, at some sizes and
+  margins. Both now draw it in the same place.
+
+### Changed
+
+- The entries share one copy of the encoder and the geometry code, so an app
+  that uses more than one entry no longer bundles it twice.
+- `<QRCode>` and `toSVGString` are both built on `buildQR`, so they cannot
+  disagree about the geometry. The output of `toSVGString` is unchanged.
+- `react-dom` is an optional peer dependency. Nothing in the package imports it.
+
 ## [3.0.0] - 2026-09-27
 
 ### Breaking
@@ -211,6 +242,7 @@ and React components.
 - Unsafe `logo.src` URL schemes are rejected, and the risk of `logo.element` is
   documented.
 
+[3.1.0]: https://github.com/ttsalpha/qrcode/compare/v3.0.0...v3.1.0
 [3.0.0]: https://github.com/ttsalpha/qrcode/compare/v2.4.3...v3.0.0
 [2.4.3]: https://github.com/ttsalpha/qrcode/compare/v2.4.2...v2.4.3
 [2.4.2]: https://github.com/ttsalpha/qrcode/compare/v2.4.1...v2.4.2

@@ -1,4 +1,4 @@
-import type { ErrorCorrectionLevel } from '../types';
+import type { ErrorCorrectionLevel } from './types';
 import { encodeQR } from './encode';
 import { selectAndApplyBestMaskFlat } from './mask';
 

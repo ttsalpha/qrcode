@@ -1,4 +1,4 @@
-import type { EncodingMode } from '../types';
+import type { EncodingMode } from './types';
 
 // 4-bit mode indicators per ISO 18004 Table 2.
 export const MODE_INDICATOR: Record<EncodingMode, number> = {

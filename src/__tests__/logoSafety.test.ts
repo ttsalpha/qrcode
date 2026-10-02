@@ -5,7 +5,7 @@ import {
   layoutLogo,
   resolveLogoEcl,
   type LogoLayoutInput,
-} from '../renderer/logoSafety';
+} from '../core/logoSafety';
 import type { ErrorCorrectionLevel } from '../types';
 
 // The cleared area used to be a continuous fraction of the SVG with no relation

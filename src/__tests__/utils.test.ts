@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { toSVGString, toDataURL } from '../utils';
-import { resolveLogoEcl } from '../renderer/logoSafety';
+import { resolveLogoEcl } from '../core/logoSafety';
 import { generateQRMatrix } from '../core/matrix';
 
 describe('toSVGString', () => {

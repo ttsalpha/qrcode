@@ -50,7 +50,7 @@ describe('QRCode component', () => {
   it('renders exactly 3 corner groups', () => {
     const { container } = render(<QRCode value="TEST" />);
     const groups = container.querySelectorAll('g');
-    // 1 wrapper <g> for QR content + 3 <g> from QRCorner
+    // 1 wrapper <g> for QR content + 1 <g> per finder pattern
     expect(groups).toHaveLength(4);
   });
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { getFinderPatterns } from '../renderer/svg';
-import { buildDataModulesPath } from '../renderer/paths';
-import { cornerSquarePath, cornerDotPath } from '../renderer/utils';
+import { getFinderPatterns } from '../core/finder';
+import { buildDataModulesPath } from '../core/paths';
+import { cornerSquarePath, cornerDotPath } from '../core/shapes';
 import { generateQRMatrix } from '../core/matrix';
 
 // Reference enumeration of the finder-pattern modules (7×7 finder + 1-module

@@ -1,4 +1,4 @@
-import type { CornerDotStyle, CornerSquareStyle } from '../types';
+import type { CornerDotStyle, CornerSquareStyle } from './types';
 import { r2 } from './paths';
 
 // XML 1.0 admits only tab, LF and CR out of the C0 range, so any other control
@@ -18,8 +18,7 @@ export interface Geometry {
 }
 
 // Rounds moduleSize before deriving anything from it. An unrounded one leaves
-// 0.01-unit seams between rows and gives the two renderers different viewBoxes
-// for identical props.
+// 0.01-unit seams between rows.
 export function resolveGeometry(
   size: number,
   margin: number,
@@ -56,8 +55,7 @@ export function resolveGeometry(
 
 // Every path below rounds at the point it emits a number. Corner geometry is
 // derived by dividing the finder width by 7, so the raw values carry binary
-// float noise (7 * moduleSize / 7 is not moduleSize). Rounding here covers both
-// renderers, including <QRCorner>, which passes unrounded pixel sizes.
+// float noise (7 * moduleSize / 7 is not moduleSize).
 
 export function squarePath(x: number, y: number, s: number): string {
   const side = r2(s);

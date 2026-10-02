@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import jsQR from 'jsqr';
 import { computeQRMatrix } from '../core/matrix';
-import { resolveLogoEcl, layoutLogo } from '../renderer/logoSafety';
+import { resolveLogoEcl, layoutLogo } from '../core/logoSafety';
 import type { ErrorCorrectionLevel } from '../types';
 
 // The safe-area budget only means something if a symbol with the logo punched

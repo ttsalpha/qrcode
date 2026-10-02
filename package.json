@@ -54,7 +54,7 @@
     "bench": "vitest bench --run",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.core.json"
   },
   "keywords": [
     "qrcode",

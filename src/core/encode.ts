@@ -1,4 +1,4 @@
-import type { ErrorCorrectionLevel } from '../types';
+import type { ErrorCorrectionLevel } from './types';
 import { getDataCodewordsCapacity, interleaveBlocks } from './errorCorrection';
 import {
   ALPHANUMERIC_LUT,

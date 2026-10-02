@@ -1,4 +1,4 @@
-import { moduleToPixel } from './utils';
+import { moduleToPixel } from './shapes';
 
 export interface FinderPatternInfo {
   x: number;

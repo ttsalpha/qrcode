@@ -1,4 +1,4 @@
-import type { ErrorCorrectionLevel } from '../types';
+import type { ErrorCorrectionLevel } from './types';
 
 // Max logo area as a fraction of the symbol area per ECL, where the symbol is
 // the QR grid itself. sqrt(value) = the logo's linear share of it. Empirical
@@ -50,8 +50,7 @@ export interface LogoEclResolution {
 }
 
 // Resolves the effective error correction level and logo area from the
-// user's logo settings. Shared by the React component and the headless
-// builder so both always pick the same ECL for identical props.
+// user's logo settings.
 export function resolveLogoEcl(
   hasLogo: boolean,
   userSize: number | undefined,
@@ -138,9 +137,6 @@ export interface LogoLayoutInput {
 // Both axes scale by one factor rather than rounding independently, which is
 // what keeps a non-square logo from being distorted: a 3:1 logo would otherwise
 // lose 40% of its width while its height grew.
-//
-// Shared by the React component and the headless builder so the two can never
-// disagree about where the logo sits.
 export function layoutLogo({
   absoluteArea,
   aspectRatio,

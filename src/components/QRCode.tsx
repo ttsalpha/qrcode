@@ -3,23 +3,10 @@
 declare const process: { env: { NODE_ENV?: string } } | undefined;
 
 import * as React from 'react';
-import type {
-  QRCodeComponentProps,
-  CornerDotStyle,
-  CornerSquareStyle,
-} from '../types';
-import { generateQRMatrix } from '../core/matrix';
-import { getFinderPatterns } from '../renderer/svg';
-import { buildDataModulesPath, r2 } from '../renderer/paths';
-import { resolveGeometry, xmlSafeText } from '../renderer/utils';
-import {
-  pickECLForArea,
-  isSafeSrc,
-  resolveLogoEcl,
-  layoutLogo,
-  logoAspectRatio,
-} from '../renderer/logoSafety';
-import { QRCorner } from './QRCorner';
+import type { QRCodeComponentProps } from '../types';
+import { buildQR } from '../core/buildQR';
+import { isSafeSrc } from '../core/logoSafety';
+import { xmlSafeText } from '../core/shapes';
 
 // Warn unless a bundler proved this is production. `process` is absent in plain
 // browser ESM, and reading that as production silenced the warning in exactly
@@ -52,22 +39,6 @@ function QRCodeRoot(
   }: QRCodeComponentProps,
   ref: React.ForwardedRef<SVGSVGElement>,
 ): React.JSX.Element {
-  const requestedVersion = qr?.version;
-  const userECL = qr?.errorCorrectionLevel;
-  const userSize = logo?.size;
-  const hasLogoSrc = !!(logo?.element || (logo?.src && isSafeSrc(logo.src)));
-
-  const { ecLevel, absoluteArea, targetArea, clamped } = resolveLogoEcl(
-    hasLogoSrc,
-    userSize,
-    userECL,
-  );
-  if (isDev && clamped) {
-    console.warn(
-      `[QRCode] logo.size=${userSize} needs ECL ≥ "${pickECLForArea(targetArea)}"; ECL "${userECL}" set, logo clamped.`,
-    );
-  }
-
   // An explicit ratio is authoritative, so the measuring work is skipped
   // entirely and the logo never reflows after the first paint.
   const explicitAspect = logo?.aspectRatio;
@@ -120,81 +91,34 @@ function QRCodeRoot(
     return () => observer.disconnect();
   }, [logo?.element, measured]);
 
-  const { matrix, size: qrSize } = React.useMemo(
-    () => generateQRMatrix(value, ecLevel, requestedVersion),
-    [value, ecLevel, requestedVersion],
-  );
-
-  const { moduleSize, marginPx, svgSize } = resolveGeometry(
-    size,
-    margin,
-    qrSize,
-  );
-
-  const squareStyle: CornerSquareStyle = corner?.square?.style ?? 'square';
-  const squareColor = corner?.square?.color ?? dotColor;
-  const defaultCornerDotStyle: CornerDotStyle =
-    squareStyle === 'extra-rounded'
-      ? 'rounded'
-      : squareStyle === 'circle'
-        ? 'circle'
-        : 'square';
-  const cornerDotStyleVal: CornerDotStyle =
-    corner?.dot?.style ?? defaultCornerDotStyle;
-  const cornerDotColor = corner?.dot?.color ?? dotColor;
-
-  const dataPath = React.useMemo(
-    () => buildDataModulesPath(matrix, qrSize, moduleSize, marginPx, dotStyle),
-    [matrix, qrSize, moduleSize, marginPx, dotStyle],
-  );
-  const finderPatterns = React.useMemo(
-    () => getFinderPatterns(qrSize, moduleSize, marginPx),
-    [qrSize, moduleSize, marginPx],
-  );
-
-  const uid = React.useId().replace(/:/g, '');
-  const maskId = uid + 'm';
-  const titleId = uid + 't';
-
   const aspectRatio = measured
     ? logo?.element
       ? elementAspectRatio
       : srcAspectRatio
-    : logoAspectRatio(explicitAspect);
-  const layout = layoutLogo({
-    absoluteArea,
-    aspectRatio,
-    ecLevel,
-    qrSize,
-    moduleSize,
-    marginPx,
+    : explicitAspect;
+
+  // `element` is drawn here, not by the core, which only reserves its area.
+  const { element: logoElement, ...logoRest } = logo ?? {};
+  const geometry = buildQR({
+    value,
+    size,
+    margin,
+    dotStyle,
+    dotColor,
+    backgroundColor,
+    corner,
+    qr,
+    logo: logo && { ...logoRest, custom: !!logoElement, aspectRatio },
   });
-  // In modules, like `margin`, so the logo keeps its proportions when `size`
-  // changes. An absolute unit here would scale with the viewBox instead.
-  const logoMargin = (logo?.margin ?? 0) * moduleSize;
-  // Rounded at emission, like every other coordinate, so the component and
-  // toSVGString place the logo and its mask on identical values.
-  const logoX = r2(layout.boxX + logoMargin);
-  const logoY = r2(layout.boxY + logoMargin);
-  const logoWidth = r2(Math.max(0, layout.boxWidth - logoMargin * 2));
-  const logoHeight = r2(Math.max(0, layout.boxHeight - logoMargin * 2));
-
-  const applyLogoMask =
-    hasLogoSrc && logoWidth > 0 && logoHeight > 0 && (logo?.hideDots ?? true);
-
-  // A margin carried over from when it meant SVG units consumes the whole box.
-  // Both axes: a landscape logo runs out of height first.
-  if (
-    isDev &&
-    hasLogoSrc &&
-    layout.boxWidth > 0 &&
-    layout.boxHeight > 0 &&
-    (logoWidth <= 0 || logoHeight <= 0)
-  ) {
-    console.warn(
-      `[QRCode] logo.margin=${logo?.margin} is measured in modules and leaves no room for the logo; it was not rendered.`,
-    );
+  if (isDev) {
+    for (const warning of geometry.warnings) console.warn(warning);
   }
+
+  const uid = React.useId().replace(/:/g, '');
+  const maskId = uid + 'm';
+  const titleId = uid + 't';
+  const { viewBox, background, modules, finders, clear } = geometry;
+  const logoBox = geometry.logo;
 
   return (
     <>
@@ -218,9 +142,9 @@ function QRCodeRoot(
         ref={ref}
         role="img"
         aria-labelledby={titleId}
-        width={r2(size)}
-        height={r2(size)}
-        viewBox={`0 0 ${svgSize} ${svgSize}`}
+        width={geometry.size}
+        height={geometry.size}
+        viewBox={`0 0 ${viewBox} ${viewBox}`}
         xmlns="http://www.w3.org/2000/svg"
         className={className}
         style={style}
@@ -229,64 +153,62 @@ function QRCodeRoot(
           {xmlSafeText(ariaLabel ?? `QR code: ${value}`)}
         </title>
         {/* Background */}
-        {backgroundColor !== 'transparent' && (
-          <rect width={svgSize} height={svgSize} fill={backgroundColor} />
+        {background !== undefined && (
+          <rect width={viewBox} height={viewBox} fill={background} />
         )}
 
         {/* Mask cuts out the logo area regardless of background color */}
-        {applyLogoMask && (
+        {clear && (
           <defs>
             <mask id={maskId}>
-              <rect width={svgSize} height={svgSize} fill="white" />
+              <rect width={viewBox} height={viewBox} fill="white" />
               <rect
-                x={r2(layout.clearX)}
-                y={r2(layout.clearY)}
-                width={r2(layout.clearWidth)}
-                height={r2(layout.clearHeight)}
+                x={clear.x}
+                y={clear.y}
+                width={clear.width}
+                height={clear.height}
                 fill="black"
               />
             </mask>
           </defs>
         )}
 
-        <g mask={applyLogoMask ? `url(#${maskId})` : undefined}>
+        <g mask={clear ? `url(#${maskId})` : undefined}>
           {/* Data modules */}
-          {dataPath && <path d={dataPath} fill={dotColor} />}
+          {modules && <path d={modules.d} fill={modules.fill} />}
 
           {/* Finder patterns (corners) */}
-          {finderPatterns.map((fp, idx) => (
-            <QRCorner
-              key={`corner-${idx}`}
-              x={fp.x}
-              y={fp.y}
-              moduleSize={moduleSize}
-              squareStyle={squareStyle}
-              squareColor={squareColor}
-              dotStyle={cornerDotStyleVal}
-              dotColor={cornerDotColor}
-            />
+          {finders.map((finder, idx) => (
+            <g key={`corner-${idx}`}>
+              <path
+                d={finder.square.d}
+                fill={finder.square.fill}
+                fillRule="evenodd"
+              />
+              <path d={finder.dot.d} fill={finder.dot.fill} />
+            </g>
           ))}
         </g>
 
         {/* Logo */}
-        {hasLogoSrc && logo && logoWidth > 0 && logoHeight > 0 && (
+        {logoBox && (logoElement || logoBox.src) && (
           <>
-            {logo.element ? (
+            {logoElement ? (
               <foreignObject
-                x={logoX}
-                y={logoY}
-                width={logoWidth}
-                height={logoHeight}
+                x={logoBox.x}
+                y={logoBox.y}
+                width={logoBox.width}
+                height={logoBox.height}
               >
-                {logo.element}
+                {logoElement}
               </foreignObject>
             ) : (
               <image
-                href={logo.src}
-                x={logoX}
-                y={logoY}
-                width={logoWidth}
-                height={logoHeight}
+                href={logoBox.src}
+                x={logoBox.x}
+                y={logoBox.y}
+                width={logoBox.width}
+                height={logoBox.height}
               />
             )}
           </>

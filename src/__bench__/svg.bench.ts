@@ -1,6 +1,6 @@
 import { bench, describe } from 'vitest';
-import { buildSVGString } from '../renderer/svgDirect';
-import { buildDataModulesPath } from '../renderer/paths';
+import { toSVGString as buildSVGString } from '../core/svgString';
+import { buildDataModulesPath } from '../core/paths';
 import { computeQRMatrix } from '../core/matrix';
 import { toSVGString } from '../utils';
 import { MEDIUM_URL } from './payloads';

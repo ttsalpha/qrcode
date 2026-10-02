@@ -1,5 +1,6 @@
 import type { QRCodeProps } from './types';
-import { buildSVGString } from './renderer/svgDirect';
+import type { SVGStringOptions } from './core/types';
+import { toSVGString as buildSVGString } from './core/svgString';
 
 export function toSVGString(props: QRCodeProps): string {
   // Rendering a React node would pull react-dom/server into every consumer of
@@ -9,7 +10,7 @@ export function toSVGString(props: QRCodeProps): string {
       '[QRCode] logo.element cannot be serialised to a string; pass logo.src instead, or render <QRCode>',
     );
   }
-  return buildSVGString(props);
+  return buildSVGString(props as SVGStringOptions);
 }
 
 export type ImageFormat = 'png' | 'jpeg';

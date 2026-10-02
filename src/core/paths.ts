@@ -1,4 +1,4 @@
-import type { DotStyle } from '../types';
+import type { DotStyle } from './types';
 
 // Round to 2 decimals: keeps path strings compact with sub-0.01px error
 export const r2 = (n: number): number => Math.round(n * 100) / 100;
@@ -201,7 +201,6 @@ const PATH_CACHE_LIMIT = 2;
 const pathCache = new WeakMap<QRMatrixView, Map<string, string>>();
 
 // Builds one merged SVG path `d` string for all dark non-finder data modules.
-// Shared by the React component and the headless SVG string builder.
 export function buildDataModulesPath(
   matrix: QRMatrixView,
   size: number,

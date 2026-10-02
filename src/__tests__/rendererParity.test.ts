@@ -5,10 +5,10 @@ import { QRCode } from '../components/QRCode';
 import { toSVGString } from '../utils';
 import type { QRCodeProps } from '../types';
 
-// <QRCode> and toSVGString are two independent renderers over one matrix, and
-// nothing compared them before: they disagreed on the viewBox whenever the size
-// was not divisible by the module count, and the React path left 0.01-unit
-// seams between vertically adjacent modules that the string builder did not.
+// <QRCode> and toSVGString both draw from buildQR but serialise it separately.
+// They once disagreed on the viewBox whenever the size was not divisible by the
+// module count, and the React path left 0.01-unit seams between vertically
+// adjacent modules that the string builder did not.
 //
 // react-dom/server is imported only to serialise the component here; the
 // library itself no longer depends on it.

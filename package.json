@@ -1,7 +1,7 @@
 {
   "name": "@ttsalpha/qrcode",
   "version": "3.0.0",
-  "description": "Lightweight, fully customizable React QR code library rendered as SVG",
+  "description": "Lightweight, fully customizable QR code library for React and React Native",
   "author": "Son Tran",
   "license": "MIT",
   "homepage": "https://qrcode.ttsalpha.com",
@@ -89,7 +89,9 @@
     "svg",
     "qr-code",
     "react-qrcode",
-    "customizable"
+    "customizable",
+    "react-native",
+    "expo"
   ],
   "peerDependencies": {
     "react": ">=18.0.0",

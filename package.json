@@ -33,12 +33,25 @@
         "types": "./dist/server.d.cts",
         "default": "./dist/server.cjs"
       }
+    },
+    "./core": {
+      "import": {
+        "types": "./dist/core.d.ts",
+        "default": "./dist/core.js"
+      },
+      "require": {
+        "types": "./dist/core.d.cts",
+        "default": "./dist/core.cjs"
+      }
     }
   },
   "typesVersions": {
     "*": {
       "server": [
         "./dist/server.d.ts"
+      ],
+      "core": [
+        "./dist/core.d.ts"
       ]
     }
   },
@@ -68,6 +81,11 @@
   "peerDependencies": {
     "react": ">=18.0.0",
     "react-dom": ">=18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react-dom": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@testing-library/jest-dom": "7.0.1",

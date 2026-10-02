@@ -81,6 +81,28 @@ describe.skipIf(!built)('published bundles', () => {
     }
   });
 
+  it('the native entry needs only react and react-native-svg', () => {
+    for (const entry of ['native.js', 'native.cjs']) {
+      expect(
+        bareImports(entry).filter((id) => !id.startsWith('react/')),
+        entry,
+      ).toEqual(['react', 'react-native-svg']);
+    }
+  });
+
+  // Metro does not tree-shake, so whatever the native entry reaches ships to
+  // every app. Only the string builder and the DOM component write the SVG
+  // namespace, and native needs neither.
+  it('the native entry does not carry the SVG string builder', () => {
+    for (const entry of ['native.js', 'native.cjs']) {
+      for (const file of reachable(entry)) {
+        expect(readFileSync(file, 'utf8'), file).not.toMatch(
+          /http:\/\/www\.w3\.org\/2000\/svg/,
+        );
+      }
+    }
+  });
+
   it('the server entry works under the react-server condition', () => {
     const out = node(
       `import('./dist/server.js')
@@ -178,6 +200,7 @@ describe.skipIf(!built)('published bundles', () => {
       'index.js': 12_000,
       'server.js': 10_800,
       'core.js': 10_200,
+      'native.js': 10_000,
     };
     for (const [entry, budget] of Object.entries(budgets)) {
       expect(gzipSize(entry), entry).toBeLessThanOrEqual(budget);

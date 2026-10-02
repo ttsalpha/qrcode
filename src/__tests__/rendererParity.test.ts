@@ -42,6 +42,25 @@ const CASES: Array<[string, QRCodeProps]> = [
       logo: { src: 'https://example.com/logo.png', size: 0.5, aspectRatio: 3 },
     },
   ],
+  [
+    'logo with radius',
+    {
+      value: 'https://shop.example.com/order?id=42',
+      logo: { src: 'https://example.com/logo.png', radius: 0.5 },
+    },
+  ],
+  [
+    'logo with margin, aspect ratio and full radius',
+    {
+      value: 'https://shop.example.com/order?id=42',
+      logo: {
+        src: 'https://example.com/logo.png',
+        margin: 1,
+        aspectRatio: 2,
+        radius: 1,
+      },
+    },
+  ],
   ['v7 payload', { value: 'A'.repeat(200), size: 333 }],
   // getBoundingClientRect().width routinely lands on a fraction.
   ['fractional size', { value: 'HELLO WORLD', size: 256.789 }],
@@ -58,6 +77,7 @@ function geometryOf(doc: Document) {
   );
   const maskRect = doc.querySelectorAll('mask rect')[1];
   const image = doc.querySelector('image');
+  const clipRect = doc.querySelector('clipPath rect');
   return {
     width: svg?.getAttribute('width'),
     height: svg?.getAttribute('height'),
@@ -74,6 +94,14 @@ function geometryOf(doc: Document) {
       y: image.getAttribute('y'),
       width: image.getAttribute('width'),
       height: image.getAttribute('height'),
+    },
+    clip: clipRect && {
+      x: clipRect.getAttribute('x'),
+      y: clipRect.getAttribute('y'),
+      width: clipRect.getAttribute('width'),
+      height: clipRect.getAttribute('height'),
+      rx: clipRect.getAttribute('rx'),
+      ry: clipRect.getAttribute('ry'),
     },
   };
 }

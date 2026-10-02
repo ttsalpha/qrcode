@@ -633,3 +633,64 @@ describe('logo.aspectRatio', () => {
     expect(w3 / h3).toBeCloseTo(3, 2);
   });
 });
+
+describe('logo.radius', () => {
+  const URL7 =
+    'https://shop.example.com/order?id=42&ref=qr&utm_source=table-01';
+
+  it('clips an image logo to a rounded rect', () => {
+    const { container } = render(
+      <QRCode
+        value={URL7}
+        logo={{
+          src: 'https://example.com/logo.png',
+          radius: 1,
+          aspectRatio: 1,
+        }}
+      />,
+    );
+    const clip = container.querySelector('clipPath')!;
+    const image = container.querySelector('image')!;
+    expect(image.getAttribute('clip-path')).toBe(`url(#${clip.id})`);
+    const rect = clip.querySelector('rect')!;
+    expect(rect.getAttribute('width')).toBe(image.getAttribute('width'));
+    expect(Number(rect.getAttribute('rx'))).toBeGreaterThan(0);
+  });
+
+  it('clips an element logo the same way', () => {
+    const { container } = render(
+      <QRCode
+        value={URL7}
+        logo={{ element: <div>Logo</div>, radius: 0.5, aspectRatio: 1 }}
+      />,
+    );
+    const clip = container.querySelector('clipPath')!;
+    const object = container.querySelector('foreignObject')!;
+    expect(object.getAttribute('clip-path')).toBe(`url(#${clip.id})`);
+  });
+
+  it('adds no clip path when the logo is square', () => {
+    const { container } = render(
+      <QRCode value={URL7} logo={{ src: 'https://example.com/logo.png' }} />,
+    );
+    expect(container.querySelector('clipPath')).toBeNull();
+    expect(container.querySelector('image')?.hasAttribute('clip-path')).toBe(
+      false,
+    );
+  });
+
+  it('gives two symbols on one page distinct clip ids', () => {
+    const props = {
+      value: URL7,
+      logo: { src: 'https://example.com/logo.png', radius: 0.5 },
+    };
+    const { container } = render(
+      <>
+        <QRCode {...props} />
+        <QRCode {...props} />
+      </>,
+    );
+    const ids = [...container.querySelectorAll('clipPath')].map((c) => c.id);
+    expect(new Set(ids).size).toBe(2);
+  });
+});

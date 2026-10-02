@@ -185,12 +185,14 @@ export function toSVGString(props: SVGStringOptions): string {
     ariaLabel ?? '',
     idPrefix ?? '',
   ];
-  // Appended only when set, so props that predate the option keep the ids
+  // Appended only when set, so props that predate these options keep the ids
   // they always had.
+  if (logo?.radius !== undefined) key.push(logo.radius);
   if (logo?.custom) key.push('custom');
   const uid = `${prefix}${hashId(key.join('\u0000'))}`;
   const titleId = `${uid}t`;
   const maskId = `${uid}m`;
+  const clipId = `${uid}c`;
 
   const { size: sizeAttr, viewBox, background, modules, finders } = geometry;
   const { clear, logo: logoBox } = geometry;
@@ -237,8 +239,16 @@ export function toSVGString(props: SVGStringOptions): string {
   svg += `</g>`;
 
   if (logoBox?.src) {
-    const { x, y, width, height } = logoBox;
-    svg += `<image href="${esc(logoBox.src!)}" x="${x}" y="${y}" width="${width}" height="${height}"/>`;
+    const { x, y, width, height, radius } = logoBox;
+    if (radius > 0) {
+      svg +=
+        `<defs><clipPath id="${clipId}">` +
+        `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" ry="${radius}"/>` +
+        `</clipPath></defs>`;
+    }
+    svg +=
+      `<image href="${esc(logoBox.src!)}" x="${x}" y="${y}" width="${width}" height="${height}"` +
+      `${radius > 0 ? ` clip-path="url(#${clipId})"` : ''}/>`;
   }
 
   svg += `</svg>`;

@@ -45,6 +45,12 @@ export function resolveCorner(
   };
 }
 
+function clampRadius(radius: number | undefined): number {
+  return radius !== undefined && Number.isFinite(radius)
+    ? Math.max(0, Math.min(1, radius))
+    : 0;
+}
+
 /**
  * Resolves props into the geometry of one symbol. Pure JS: no DOM, no React.
  * Throws a `RangeError` or `TypeError` for input that cannot be encoded.
@@ -168,6 +174,9 @@ export function buildQR(props: QRCodeOptions): QRGeometry {
           y: logoY,
           width: logoWidth,
           height: logoHeight,
+          radius: r2(
+            (clampRadius(logo?.radius) * Math.min(logoWidth, logoHeight)) / 2,
+          ),
         }
       : undefined,
     warnings,

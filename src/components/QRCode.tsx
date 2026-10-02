@@ -117,6 +117,7 @@ function QRCodeRoot(
   const uid = React.useId().replace(/:/g, '');
   const maskId = uid + 'm';
   const titleId = uid + 't';
+  const clipId = uid + 'c';
   const { viewBox, background, modules, finders, clear } = geometry;
   const logoBox = geometry.logo;
 
@@ -193,12 +194,27 @@ function QRCodeRoot(
         {/* Logo */}
         {logoBox && (logoElement || logoBox.src) && (
           <>
+            {logoBox.radius > 0 && (
+              <defs>
+                <clipPath id={clipId}>
+                  <rect
+                    x={logoBox.x}
+                    y={logoBox.y}
+                    width={logoBox.width}
+                    height={logoBox.height}
+                    rx={logoBox.radius}
+                    ry={logoBox.radius}
+                  />
+                </clipPath>
+              </defs>
+            )}
             {logoElement ? (
               <foreignObject
                 x={logoBox.x}
                 y={logoBox.y}
                 width={logoBox.width}
                 height={logoBox.height}
+                clipPath={logoBox.radius > 0 ? `url(#${clipId})` : undefined}
               >
                 {logoElement}
               </foreignObject>
@@ -209,6 +225,7 @@ function QRCodeRoot(
                 y={logoBox.y}
                 width={logoBox.width}
                 height={logoBox.height}
+                clipPath={logoBox.radius > 0 ? `url(#${clipId})` : undefined}
               />
             )}
           </>

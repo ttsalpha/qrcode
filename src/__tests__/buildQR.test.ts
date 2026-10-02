@@ -106,6 +106,44 @@ describe('buildQR', () => {
     });
   });
 
+  describe('logo.radius', () => {
+    const radiusOf = (radius?: number) =>
+      buildQR({ value: URL7, logo: { src: LOGO, radius } }).logo!.radius;
+
+    it('is square by default', () => {
+      expect(radiusOf()).toBe(0);
+      expect(radiusOf(0)).toBe(0);
+    });
+
+    it('is half the shorter side when fully rounded', () => {
+      const g = buildQR({ value: URL7, logo: { src: LOGO, radius: 1 } });
+      expect(g.logo!.radius).toBeCloseTo(
+        Math.min(g.logo!.width, g.logo!.height) / 2,
+        1,
+      );
+    });
+
+    it('scales between the extremes', () => {
+      expect(radiusOf(0.5)).toBeCloseTo(radiusOf(1) / 2, 1);
+    });
+
+    it('clamps values outside 0..1 and ignores non-finite ones', () => {
+      expect(radiusOf(5)).toBe(radiusOf(1));
+      expect(radiusOf(-1)).toBe(0);
+      expect(radiusOf(NaN)).toBe(0);
+      expect(radiusOf(Infinity)).toBe(0);
+    });
+
+    it('measures against the shorter side of a wide logo', () => {
+      const g = buildQR({
+        value: URL7,
+        logo: { src: LOGO, aspectRatio: 3, radius: 1 },
+      });
+      expect(g.logo!.width).toBeGreaterThan(g.logo!.height);
+      expect(g.logo!.radius).toBeCloseTo(g.logo!.height / 2, 1);
+    });
+  });
+
   describe('warnings', () => {
     it('reports a logo clamped by an explicit error correction level', () => {
       const g = buildQR({
@@ -143,8 +181,43 @@ describe('buildQR', () => {
   });
 });
 
-describe('toSVGString with a custom logo', () => {
-  it('draws no image, but still clears the area', () => {
+describe('toSVGString and logo.radius', () => {
+  it('clips the image to a rounded rect', () => {
+    const svg = toSVGString({
+      value: URL7,
+      logo: { src: LOGO, radius: 1, aspectRatio: 1 },
+    });
+    const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+    const clipRect = doc.querySelector('clipPath rect')!;
+    const image = doc.querySelector('image')!;
+    const clipId = doc.querySelector('clipPath')!.getAttribute('id');
+    expect(image.getAttribute('clip-path')).toBe(`url(#${clipId})`);
+    for (const attr of ['x', 'y', 'width', 'height']) {
+      expect(clipRect.getAttribute(attr)).toBe(image.getAttribute(attr));
+    }
+    expect(Number(clipRect.getAttribute('rx'))).toBeGreaterThan(0);
+  });
+
+  it('adds nothing when the radius is zero or unset', () => {
+    const plain = toSVGString({ value: URL7, logo: { src: LOGO } });
+    expect(
+      toSVGString({ value: URL7, logo: { src: LOGO, radius: 0 } }),
+    ).toMatch(/^((?!clipPath).)*$/);
+    expect(plain).not.toMatch(/clipPath|clip-path/);
+  });
+
+  it('keeps the ids of props that predate the option', () => {
+    const base = { value: URL7, logo: { src: LOGO } };
+    const id = (svg: string) => svg.match(/aria-labelledby="([^"]+)"/)![1];
+    expect(id(toSVGString(base))).toBe(
+      id(toSVGString({ ...base, logo: { src: LOGO, radius: undefined } })),
+    );
+    expect(id(toSVGString(base))).not.toBe(
+      id(toSVGString({ ...base, logo: { src: LOGO, radius: 0.5 } })),
+    );
+  });
+
+  it('draws no image for a custom logo, but still clears the area', () => {
     const svg = toSVGString({ value: URL7, logo: { custom: true } });
     expect(svg).not.toMatch(/<image/);
     expect(svg).toMatch(/<mask/);

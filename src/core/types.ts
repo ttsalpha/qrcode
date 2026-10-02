@@ -49,6 +49,12 @@ export interface CoreLogoOptions {
   margin?: number;
   /** Clear QR dots behind the logo area. Recommended when logo has transparency. */
   hideDots?: boolean;
+  /**
+   * Corner radius as a share of the logo's shorter side, from `0` (square) to
+   * `1` (fully rounded: a circle for a square logo). Values outside the range
+   * are clamped. Default: `0`
+   */
+  radius?: number;
 }
 
 export interface CornerOptions {
@@ -116,6 +122,8 @@ export interface QRRect {
 export interface QRLogoGeometry extends QRRect {
   /** Absent when the logo is `custom`: the adapter draws it. */
   src?: string;
+  /** Corner radius in the same units as the rest of the geometry. */
+  radius: number;
 }
 
 export interface QRFinder {
